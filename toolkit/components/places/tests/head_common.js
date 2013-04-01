@@ -164,6 +164,17 @@ function readFileOfLength(aFileName, aExpectedLength) {
   return data;
 }
 
+/**
+ * Reads text from the specified nsIFile.
+ *
+ * @param aFile
+ *        The nsIFile to read from.
+ * @return string.
+ */
+function readFileText(aFile) {
+  let binArray = readFileData(do_get_file(aFile));
+  return String.fromCharCode.apply(null, new Uint16Array(binArray));
+}
 
 /**
  * Returns the base64-encoded version of the given string.  This function is

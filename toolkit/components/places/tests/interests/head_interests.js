@@ -12,6 +12,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/PlacesInterestsStorage.jsm");
+Cu.import("resource://testing-common/httpd.js");
 
 // Import common head.
 let (commonFile = do_get_file("../head_common.js", false)) {
@@ -84,4 +85,51 @@ function itemsHave(items,data) {
     if(items[i] == data) return true;
   }
   return false;
+}
+
+const HTTP_SERVER_PORT = 4444;
+const HTTP_BASE = "http://localhost:" + HTTP_SERVER_PORT;
+const MOZILLA_GENERAL_LAST_MODIFIED = "Tue, 15 Nov 1994 12:45:26 GMT";
+
+let gHttpServer = new HttpServer();
+gHttpServer.start(HTTP_SERVER_PORT);
+
+function createPathHandler(path, ctype, callback) {
+  gHttpServer.registerPathHandler(path, function(request, response) {
+    response.setStatusLine( "1.1" , 200 , "OK" );
+    response.setHeader("Content-Type", ctype , false);
+    callback(request, response);
+  });
+}
+
+function createJSONPathHandler(path, callback) {
+  return createPathHandler(path,"application/json",callback);
+}
+
+function createJSONStringHandler(path,stringGenerator) {
+  return createJSONPathHandler(path,function(request, response) {
+    let content = (typeof stringGenerator == "function") ? stringGenerator(request, response) : stringGenerator;
+    response.write(content);
+  });
+};
+
+function createReadJSONFileHandler(path,fileName) {
+  return createJSONStringHandler(path,readFileText(fileName));
+}
+
+function setUpInterestAPIHandlers() {
+  createJSONPathHandler("/api/v0/rules/de/mozilla_general",function(request , response) {
+    response.setStatusLine( "1.1" , 200 , "OK");
+    response.setHeader("Last-Modified", MOZILLA_GENERAL_LAST_MODIFIED);
+    response.write(readFileText("mozilla_general.js"));
+  });
+
+
+}
+
+function terminateServer() {
+  // Stop the HTTP server.  this should be the last task registered
+  let deferred = Promise.defer();
+  gHttpServer.stop(deferred.resolve);
+  return deferred.promise;
 }
