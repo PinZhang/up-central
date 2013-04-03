@@ -2287,6 +2287,10 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url(chrome://browser/skin/pointerLock-64.png);
 }
 
+.popup-notification-icon[popupid="interests"] {
+  list-style-image: url(chrome://browser/skin/mixed-content-blocked-64.png);
+}
+
 /* Notification icon box */
 #notification-popup-box {
   position: relative;
@@ -2397,6 +2401,10 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 #pointerLock-cancel {
   margin: 0px;
+}
+
+#interests-notification-icon {
+  list-style-image: url(chrome://browser/skin/mixed-content-blocked-16.png);
 }
 
 #identity-popup-container {

@@ -10,5 +10,6 @@
 interface mozIInterestsWebAPI : nsISupports
 {
   jsval checkInterests(in jsval interests);
-  jsval getTopInterests();
+  jsval getTop5Interests();
+  jsval getTopInterests(in jsval numInterests);
 };

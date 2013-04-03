@@ -3164,6 +3164,15 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   }
 }
 
+#interests-notification-icon {
+  list-style-image: url(chrome://browser/skin/mixed-content-blocked-16.png);
+}
+@media (min-resolution: 2dppx) {
+  #interests-notification-icon {
+    list-style-image: url(chrome://browser/skin/mixed-content-blocked-16@2x.png);
+  }
+}
+
 
 
 .popup-notification-icon {
@@ -3269,6 +3278,21 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 #pointerLock-cancel {
   margin: 0px;
+}
+
+.popup-notification-icon[popupid="interests"] {
+  list-style-image: url(chrome://browser/skin/mixed-content-blocked-64.png);
+}
+@media (min-resolution: 2dppx) {
+  .popup-notification-icon[popupid="interests"] {
+    list-style-image: url(chrome://browser/skin/mixed-content-blocked-64@2x.png);
+  }
+}
+#interests-privacy {
+  -moz-margin-start: 0; /* override default label margin to match description margin */
+}
+#interests-learnmore-link {
+  -moz-margin-start: -1px; /* override default link margin to match description margin */
 }
 
 

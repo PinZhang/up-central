@@ -66,6 +66,8 @@
     <command id="cmd_pluginsToggle" oncommand="onPluginRadioClick(event);"/>
     <command id="cmd_pointerLockDef"    oncommand="onCheckboxClick('pointerLock');"/>
     <command id="cmd_pointerLockToggle" oncommand="onRadioClick('pointerLock');"/>
+    <command id="cmd_interestsDef"    oncommand="onCheckboxClick('interests');"/>
+    <command id="cmd_interestsToggle" oncommand="onRadioClick('interests');"/>
   </commandset>
 
   <keyset id="pageInfoKeySet">
@@ -424,6 +426,19 @@
             <radiogroup id="pointerLockRadioGroup" orient="horizontal">
               <radio id="pointerLock#1" command="cmd_pointerLockToggle" label="&permAllow;"/>
               <radio id="pointerLock#2" command="cmd_pointerLockToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission" id="permInterestsRow" >
+          <label class="permissionLabel" id="permInterestsLabel"
+                 value="&permInterests;" control="interestsRadioGroup"/>
+          <hbox id="permInterestsBox" role="group" aria-labelledby="permInterestsLabel">
+            <checkbox id="interestsDef" command="cmd_interestsDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="interestsRadioGroup" orient="horizontal">
+              <radio id="interests#0" command="cmd_interestsToggle" label="&permAskAlways;"/>
+              <radio id="interests#1" command="cmd_interestsToggle" label="&permAllow;"/>
+              <radio id="interests#2" command="cmd_interestsToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>
         </vbox>

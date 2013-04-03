@@ -149,7 +149,7 @@
 
 #define CREATE_MOZ_UP_INTERESTS NS_LITERAL_CSTRING( \
   "CREATE TABLE moz_up_interests (" \
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT" \
+    "  id INTEGER PRIMARY KEY" \
     ", interest TEXT NOT NULL UNIQUE" \
   ")" \
 )

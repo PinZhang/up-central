@@ -67,6 +67,7 @@
 <!ENTITY  permPlugins           "Activate Plugins">
 <!ENTITY  permFullscreen        "Enter Fullscreen">
 <!ENTITY  permPointerLock       "Hide the Mouse Cursor">
+<!ENTITY  permInterests         "Personalize with Interests">
 
 <!ENTITY  permIndexedDB              "Maintain Offline Storage">
 <!ENTITY  permClearStorage           "Clear Storage">

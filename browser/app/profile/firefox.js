@@ -1220,6 +1220,8 @@ pref("social.toast-notifications.enabled", true);
 pref("dom.identity.enabled", false);
 
 pref("interests.enabled", false);
+pref("interests.userDomainWhitelist", 'mozilla.org, mozilla.com, about:config, about:profile');
+pref("interests.navigator.prompted", false);
 
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);

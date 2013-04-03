@@ -69,6 +69,17 @@ var gPermObj = {
   {
     return BLOCK;
   },
+  interests: function getInterestsPermissions()
+  {
+    // If the user has interests explicitly enabled or not, use that permission
+    try {
+      return gPrefs.getBoolPref("interests.navigator.enabled") ? ALLOW : BLOCK;
+    }
+    catch(ex) {}
+
+    // The default value is unset, so we will ask
+    return UNKNOWN;
+  },
 };
 
 var permissionObserver = {

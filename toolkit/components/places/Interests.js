@@ -269,6 +269,16 @@ Interests.prototype = {
     }
   },
 
+  _getDomainWhitelistedSet: function I__getDomainWhitelist() {
+    let whitelistedSet = new Set();
+    let userWhitelist = Services.prefs.getCharPref('interests.userDomainWhitelist').trim().split(/\s*,\s*/);
+    for (let i=0; i<userWhitelist.length; i++) {
+      whitelistedSet.add(userWhitelist[i]);
+    }
+
+    return whitelistedSet;
+  },
+
   //////////////////////////////////////////////////////////////////////////////
   //// nsIDOMEventListener
 
@@ -326,6 +336,7 @@ Interests.prototype = {
 };
 
 function InterestsWebAPI() {
+  this.currentHost = "";
 }
 InterestsWebAPI.prototype = {
   //////////////////////////////////////////////////////////////////////////////
@@ -333,8 +344,11 @@ InterestsWebAPI.prototype = {
 
   checkInterests: function(aInterests) {
     let deferred = this._makePromise();
-    gInterestsService._getBucketsForInterests(aInterests).then(results => {
 
+    // Only allow API access according to the user's permission
+    this._checkContentPermission().then(() => {
+      return gInterestsService._getBucketsForInterests(aInterests);
+    }).then(results => {
       results = JSON.parse(JSON.stringify(results));
 
       results["__exposedProps__"] = {};
@@ -349,18 +363,32 @@ InterestsWebAPI.prototype = {
         results[interest]["__exposedProps__"]["recent"] = "r";
         results[interest]["__exposedProps__"]["past"] = "r";
       });
+      delete results.interest;
       deferred.resolve(results);
     }, error => deferred.reject(error));
 
     return deferred.promise;
   },
 
+  getTop5Interests: function() {
+    return this.getTopInterests(5);
+  },
+
   getTopInterests: function(aNumber) {
     let deferred = this._makePromise();
     
-    let aNumber = 5; // always 5 for now, will be subject to a whitelist
-    gInterestsService._getTopInterests(aNumber).then(topInterests => {
-
+    let aNumber = aNumber || 5;
+    if (aNumber > 5) {
+      let whitelistedSet = gInterestsService._getDomainWhitelistedSet();
+      if (!whitelistedSet.has(this.currentHost)) { 
+        deferred.reject("host "+this.currentHost+" does not have enough privileges to access getTopInterests("+aNumber+")");
+        return deferred.promise;
+      }
+    }
+    // Only allow API access according to the user's permission
+    this._checkContentPermission().then(() => {
+      return gInterestsService._getTopInterests(aNumber);
+    }).then(topInterests => {
       topInterests = JSON.parse(JSON.stringify(topInterests));
 
       let interestNames = [];
@@ -406,10 +434,41 @@ InterestsWebAPI.prototype = {
     return deferred;
   },
 
+  /**
+   * Check if the user has allowed API access
+   *
+   * @returns Promise for when the content access is allowed or canceled
+   */
+  _checkContentPermission: function IWA__checkContentPermission() {
+    let promptPromise = Promise.defer();
+
+    // APIs created by tests don't have a principal, so just allow them
+    if (this.window == null) {
+      promptPromise.resolve();
+    }
+    // For content documents, check the user's permission
+    else {
+      let prompt = Cc["@mozilla.org/content-permission/prompt;1"].
+        createInstance(Ci.nsIContentPermissionPrompt);
+      prompt.prompt({
+        type: "interests",
+        window: this.window,
+        principal: this.window.document.nodePrincipal,
+        allow: () => promptPromise.resolve(),
+        cancel: () => promptPromise.reject(),
+      });
+    }
+
+    return promptPromise.promise;
+  },
+
   //////////////////////////////////////////////////////////////////////////////
   //// nsIDOMGlobalPropertyInitializer
 
-  init: function(aWindow) {},
+  init: function IWA__init(aWindow) {
+    let uriObj = {host: aWindow.location.hostname || aWindow.location.href};
+    this.currentHost = gInterestsService._getPlacesHostForURI(uriObj);
+  },
 
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports
@@ -419,7 +478,7 @@ InterestsWebAPI.prototype = {
   classInfo: XPCOMUtils.generateCI({
     "classID": Components.ID("{7E7F2263-E356-4B2F-B32B-4238240CD7F9}"),
     "contractID": "@mozilla.org/InterestsWebAPI;1",
-    "interfaces": [Ci.mozIInterestsWebAPI, Ci.nsIDOMGlobalPropertyInitializer],
+    "interfaces": [Ci.mozIInterestsWebAPI],
     "flags": Ci.nsIClassInfo.DOM_OBJECT,
     "classDescription": "Interests Web API"
   }),
@@ -428,8 +487,6 @@ InterestsWebAPI.prototype = {
   , Ci.mozIInterestsWebAPI
   , Ci.nsIDOMGlobalPropertyInitializer
   ]),
-
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(InterestsWebAPI),
 };
 
 let components = [Interests, InterestsWebAPI];

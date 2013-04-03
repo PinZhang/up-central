@@ -21,6 +21,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils", "resource://gre/modules/P
 const MS_PER_DAY = 86400000;
 const DEFAULT_THRESHOLD = 5;
 const DEFAULT_DURATION = 14;
+const INTEREST_HOST_QUERY_LIMIT = 100;
 
 /*
  * Generates a string for use with the SQLite client for binding parameters by array indexing
@@ -210,6 +211,32 @@ let PlacesInterestsStorage = {
     stmt.params.interest = aInterest;
     stmt.executeAsync(promiseHandler);
     stmt.finalize();
+    return returnDeferred.promise;
+  },
+
+  /**
+   * Given a list of interest names, obtains data about those interests, ordered by score
+   * This respects the user's ignore list
+   * @param     interests
+   *            A list of interests to include in the query
+   * @return Promise with the interest data
+   */
+  getInterests: function checkIntersts(interests) {
+    let returnDeferred = Promise.defer();
+    let sql = "SELECT i.interest, v.visit_count, (:currentTs-v.date_added)/:MS_PER_DAY 'days_ago' " +
+              "FROM moz_up_interests i " +
+              "JOIN moz_up_interests_visits v ON v.interest_id = i.id " +
+              "JOIN moz_up_interests_meta m ON m.interest_id = i.id " +
+              "WHERE i.interest IN (" + genSQLParamList(interests.length) + ") " +
+              "AND m.ignored_flag = 0 " +
+              "AND m.date_updated != 0 " +
+              "ORDERY BY v.date_added DESC";
+    let stmt = this.db.createStatement(sql);
+    stmt.params.MS_PER_DAY = MS_PER_DAY;
+    stmt.params.currentTs = currentTs;
+    stmt.params.INTEREST_HOST_QUERY_LIMIT = INTEREST_HOST_QUERY_LIMIT;
+
+
     return returnDeferred.promise;
   },
 

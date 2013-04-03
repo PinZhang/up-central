@@ -649,3 +649,6 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!ENTITY mixedContentBlocked.moreinfo "Most websites will still work properly even when this content is blocked.">
 
 <!ENTITY pointerLock.notification.message "Press ESC at any time to show it again.">
+
+<!ENTITY interests.learnMore "Learn More…">
+<!ENTITY interests.privacy "Mozilla protects your privacy.">
