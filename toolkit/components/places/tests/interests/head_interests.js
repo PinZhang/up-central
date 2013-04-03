@@ -92,7 +92,17 @@ const HTTP_BASE = "http://localhost:" + HTTP_SERVER_PORT;
 const MOZILLA_GENERAL_LAST_MODIFIED = "Tue, 15 Nov 1994 12:45:26 GMT";
 
 let gHttpServer = new HttpServer();
-gHttpServer.start(HTTP_SERVER_PORT);
+
+function startHttpServer() {
+  gHttpServer.start(HTTP_SERVER_PORT);
+}
+
+function stopHttpServer() {
+  // Stop the HTTP server.  this should be the last task registered
+  let deferred = Promise.defer();
+  gHttpServer.stop(deferred.resolve);
+  return deferred.promise;
+}
 
 function createPathHandler(path, ctype, callback) {
   gHttpServer.registerPathHandler(path, function(request, response) {
@@ -117,19 +127,10 @@ function createReadJSONFileHandler(path,fileName) {
   return createJSONStringHandler(path,readFileText(fileName));
 }
 
-function setUpInterestAPIHandlers() {
-  createJSONPathHandler("/api/v0/rules/de/mozilla_general",function(request , response) {
+function setUpInterestAPIHandlers(path) {
+  createJSONPathHandler("/api/v0/rules/en/mozilla_general",function(request , response) {
     response.setStatusLine( "1.1" , 200 , "OK");
     response.setHeader("Last-Modified", MOZILLA_GENERAL_LAST_MODIFIED);
     response.write(readFileText("mozilla_general.js"));
   });
-
-
-}
-
-function terminateServer() {
-  // Stop the HTTP server.  this should be the last task registered
-  let deferred = Promise.defer();
-  gHttpServer.stop(deferred.resolve);
-  return deferred.promise;
 }

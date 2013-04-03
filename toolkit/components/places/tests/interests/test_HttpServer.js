@@ -10,6 +10,7 @@ Cu.import("resource://gre/modules/PlacesInterestsStorage.jsm");
 Cu.import("resource://testing-common/httpd.js");
 
 function run_test() {
+  startHttpServer();
   run_next_test();
 }
 
@@ -75,12 +76,12 @@ add_task(function test_InterestServerAPI() {
   setUpInterestAPIHandlers();
 
   let jsonString = JSON.stringify(JSON.parse(readFileText("mozilla_general.js")));
-  yield sendAndValidate("/api/v0/rules/mozilla_general","json",jsonString,Promise.defer());
+  yield sendAndValidate("/api/v0/rules/en/mozilla_general","json",jsonString,Promise.defer());
 
 });
 
 
 add_task(function test_common_terminate() {
   // Stop the HTTP server.  this should be the last task registered
-  yield terminateServer();
+  yield stopHttpServer();
 });
