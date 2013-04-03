@@ -129,4 +129,13 @@
     "guid_uniqueindex", "moz_favicons", "guid", "UNIQUE" \
   )
 
+/**
+ * moz_annos
+ */
+
+#define CREATE_IDX_MOZ_NAMESPACE_LOCALE \
+  CREATE_PLACES_IDX( \
+    "namespacelocaleindex", "moz_up_interests_namespaces", "namespace, locale", "UNIQUE" \
+  )
+
 #endif // nsPlacesIndexes_h__

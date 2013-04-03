@@ -125,7 +125,7 @@ let PlacesInterestsStorage = {
    *          visitCount: The number of counts to add, defaulting to 1
    * @returns Promise for when the interest's visit is added
    */
-  addInterestVisit: function(interest, optional={}){ 
+  addInterestVisit: function(interest, optional={}){
     let {visitTime, visitCount} = optional;
     visitCount = visitCount || 1;
 
@@ -341,7 +341,7 @@ let PlacesInterestsStorage = {
                 "  coalesce(:duration, m.bucket_duration), " +
                 "  coalesce(:ignored, m.ignored_flag), " +
                 "  coalesce(:dateUpdated, m.date_updated) " +
-                "FROM moz_up_interests i " + 
+                "FROM moz_up_interests i " +
                 "LEFT JOIN moz_up_interests_meta m " +
                 "  ON m.interest_id = i.id " +
                 "WHERE i.interest = :interestName";
@@ -571,7 +571,202 @@ let PlacesInterestsStorage = {
     stmt.executeAsync(promiseHandler);
     stmt.finalize();
     return returnDeferred.promise;
+  },
+
+  /**
+   * insert a namespace,locale
+   * @param   namespace
+   * @param   locale
+   * @param   lastmodifed timestamp received from the server in milliseconds
+   * @returns Promise for when the insrtion happens
+   */
+  addNamespace: function (namespace,locale,lastModified) {
+    let returnDeferred = Promise.defer();
+
+    let stmt = this.db.createAsyncStatement(
+      "INSERT OR REPLACE INTO moz_up_interests_namespaces (id,namespace,locale,lastModified) " +
+      "VALUES((SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale), " +
+      ":namespace,:locale,:lastModified)");
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.params.namespace = namespace;
+    stmt.params.lastModified = lastModified || 0;
+    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+    stmt.finalize();
+    return returnDeferred.promise;
+  },
+
+  /**
+   * selects id,namespace,locale,lastModifed from the table
+   * @returns Promise for completion and results are tuple array
+   */
+  getNamespaces: function () {
+    let returnDeferred = Promise.defer();
+
+    let promiseHandler = new AsyncPromiseHandler(returnDeferred,function(row) {
+      promiseHandler.addToResultSet({id: row.getResultByName("id"),
+                                     namespace: row.getResultByName("namespace"),
+                                     locale: row.getResultByName("locale"),
+                                     lastModified: row.getResultByName("lastModified")
+                                    });
+    });
+    promiseHandler.initResults([]);
+    let stmt = this.db.createAsyncStatement("SELECT id,namespace,locale,lastModified FROM moz_up_interests_namespaces");
+    stmt.executeAsync(promiseHandler);
+    stmt.finalize();
+    return returnDeferred.promise;
+  },
+
+  /**
+   * insert ifr for an interest+namespace+locale
+   * @param   interest
+   * @param   namespace
+   * @param   locale
+   * @param   ifr_data
+   * @param   date_updated timestamp defaulted to now (in miliseconds)
+   * @returns Promise for when the insrtion happens
+   */
+   // TODO put interest behind locale
+  addInterestIFR: function (interest,namespace,locale,date_updated,ifr_data,server_id) {
+    let returnDeferred = Promise.defer();
+
+    let stmt = this.db.createAsyncStatement(
+      "INSERT OR REPLACE INTO moz_up_interests_ifr (interest_id,namespace_id,ifr_data,date_updated,server_id) " +
+      "VALUES((SELECT id FROM moz_up_interests WHERE interest = :interest) "  +
+      "       ,(SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale) " +
+      "       ,:ifr_data,:date_updated,:server_id)");
+    stmt.params.interest = interest;
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.params.ifr_data = JSON.stringify(ifr_data);
+    stmt.params.date_updated = date_updated || Date.now();
+    stmt.params.server_id = server_id;
+    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+    stmt.finalize();
+    return returnDeferred.promise;
+  },
+
+  /**
+   * deletes  (namespace,locale,interest)
+   * @param   namespace
+   * @param   locale
+   * @param   interest
+   * @returns Promise for the deletion
+   */
+  deleteInterestIFR: function (namespace,locale,interest) {
+    let returnDeferred = Promise.defer();
+    let stmt = this.db.createAsyncStatement(
+      "DELETE FROM moz_up_interests_ifr WHERE " +
+      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale) AND " +
+      "interest_id = (SELECT id FROM moz_up_interests WHERE interest = :interest)");
+    stmt.params.interest = interest;
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+    stmt.finalize();
+    return returnDeferred.promise;
+  },
+
+  /**
+   * clears namespace and and ifr tables for (namespace,locale) pair
+   * @param   namespace
+   * @param   locale
+   * @returns Promise for the deletion
+   */
+  clearNamespace: function (namespace,locale) {
+    let returnDeferred = Promise.defer();
+    let deferred = Promise.defer();
+    let stmt = this.db.createAsyncStatement(
+      "DELETE FROM moz_up_interests_ifr WHERE " +
+      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale)");
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    deferred.promise.then(() => {
+      let stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale");
+      stmt.params.namespace = namespace;
+      stmt.params.locale = locale;
+      stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+      stmt.finalize();
+    });
+    return returnDeferred.promise;
+  },
+
+  /**
+   * clears everything
+   * @returns Promise for the uberkill
+   */
+  clearNamespaces: function() {
+    // elete everything
+    let returnDeferred = Promise.defer();
+    let promises = [];
+    let deferred = Promise.defer();
+    let stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_ifr");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+
+    deferred = Promise.defer();
+    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_namespaces");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+
+    deferred = Promise.defer();
+    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_hosts");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+
+    deferred = Promise.defer();
+    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_visits");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+
+    deferred = Promise.defer();
+    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+
+    deferred = Promise.defer();
+    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_meta");
+    stmt.executeAsync(new AsyncPromiseHandler(deferred));
+    stmt.finalize();
+    promises.push(deferred.promise);
+    Promise.promised(Array)(promises).then(() => returnDeferred.resolve(),
+                                           error => returnDeferred.reject(new Error(error)));
+    return returnDeferred.promise;
+  },
+
+  /**
+   * returns full IFR enchilada for all namesapces
+   * @returns Promise for the big select
+   */
+  getAllIFRs: function() {
+    // elete everything
+    let returnDeferred = Promise.defer();
+    let promiseHandler = new AsyncPromiseHandler(returnDeferred,function(row) {
+      promiseHandler.addToResultSet({ namespace: row.getResultByName("namespace"),
+                                     locale: row.getResultByName("locale"),
+                                     interest: row.getResultByName("interest"),
+                                     date_updated: row.getResultByName("date_updated"),
+                                     ifr: JSON.parse(row.getResultByName("ifr_data")),
+                                     server_id: row.getResultByName("server_id")
+                                    });
+    });
+    promiseHandler.initResults([]);
+    let stmt = this.db.createAsyncStatement(
+      "SELECT namespace,locale,interest,date_updated,ifr_data,server_id " +
+      "FROM moz_up_interests_ifr, moz_up_interests_namespaces, moz_up_interests " +
+      "WHERE namespace_id = moz_up_interests_namespaces.id AND interest_id = moz_up_interests.id");
+    stmt.executeAsync(promiseHandler);
+    stmt.finalize();
+    return returnDeferred.promise;
   }
+
 }
 
 XPCOMUtils.defineLazyGetter(PlacesInterestsStorage, "db", function() {

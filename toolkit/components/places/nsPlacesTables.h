@@ -181,4 +181,26 @@
   ")" \
 )
 
+#define CREATE_MOZ_UP_INTERESTS_NAMESPACES NS_LITERAL_CSTRING( \
+    "CREATE TABLE moz_up_interests_namespaces (" \
+    "  id INTEGER PRIMARY KEY" \
+    ", namespace TEXT NOT NULL" \
+    ", locale TEXT NOT NULL" \
+    ", lastModified INTEGER DEFAULT 0 " \
+  ")" \
+)
+
+#define CREATE_MOZ_UP_INTERESTS_IFR NS_LITERAL_CSTRING( \
+    "CREATE TABLE moz_up_interests_ifr (" \
+    "  interest_id INTEGER NOT NULL DEFAULT 0" \
+    ", namespace_id INTEGER NOT NULL DEFAULT 0" \
+    ", ifr_data TEXT NOT NULL" \
+    ", date_updated INTEGER NOT NULL DEFAULT 0 " \
+    ", server_id INTEGER DEFAULT 0 " \
+    ", PRIMARY KEY (interest_id, namespace_id)" \
+  ")" \
+)
+
+
+
 #endif // __nsPlacesTables_h__

@@ -234,6 +234,25 @@ function clearDB() {
   } catch(ex) { dump("Exception: " + ex); }
 }
 
+/**
+ * returns number of rows in table
+ *
+ * @param aName
+ *        The name of the table or view to output.
+ */
+function get_rowscount_in_table(aName)
+{
+  let count = 0;
+  let stmt = DBConn().createStatement("SELECT COUNT(1) cnt FROM " + aName);
+  try {
+    stmt.executeStep();
+    count = stmt.row.cnt;
+  }
+  finally {
+    stmt.finalize();
+  }
+  return count;
+}
 
 /**
  * Dumps the rows of a table out to the console.
