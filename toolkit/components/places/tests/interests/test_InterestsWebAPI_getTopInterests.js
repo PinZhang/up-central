@@ -34,25 +34,6 @@ function run_test() {
 
 add_task(function test_InterestWebAPI_getTopInterest()
 {
-  // code lifted from: https://github.com/prettycode/Object.identical.js
-  function isIdentical(expected, actual, sortArrays) {
-    function sort(object) {
-      if (sortArrays == true && Array.isArray(object)) {
-        return object.sort();
-      }
-      else if (typeof object != "object" || object == null) {
-        return object;
-      }
-      return Object.keys(object).sort().map(function(key) {
-        return {
-          key: key,
-          value: sort(object[key])
-        };
-      });
-    }
-    do_check_eq(JSON.stringify(sort(expected)), JSON.stringify(sort(actual)));
-  }
-
   function scoreDecay(score, numDays, daysToZero) {
     return score * (1 - numDays/(daysToZero+1));
   }

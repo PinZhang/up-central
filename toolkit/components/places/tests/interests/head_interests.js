@@ -132,5 +132,24 @@ function setUpInterestAPIHandlers(path) {
     response.setStatusLine( "1.1" , 200 , "OK");
     response.setHeader("Last-Modified", MOZILLA_GENERAL_LAST_MODIFIED);
     response.write(readFileText("mozilla_general.js"));
-  });
+ });
+}
+
+// code lifted from: https://github.com/prettycode/Object.identical.js
+function isIdentical(expected, actual, sortArrays) {
+  function sort(object) {
+    if (sortArrays == true && Array.isArray(object)) {
+      return object.sort();
+    }
+    else if (typeof object != "object" || object == null) {
+      return object;
+    }
+    return Object.keys(object).sort().map(function(key) {
+      return {
+        key: key,
+        value: sort(object[key])
+      };
+    });
+  }
+  do_check_eq(JSON.stringify(sort(expected)), JSON.stringify(sort(actual)));
 }
