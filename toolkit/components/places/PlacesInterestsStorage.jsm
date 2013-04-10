@@ -393,9 +393,8 @@ let PlacesInterestsStorage = {
     let returnDeferred = Promise.defer();
 
     if (!Array.isArray(interests)) {
-      return deferred.reject(Error("invalid input"));
+      return returnDeferred.reject(Error("invalid input"));
     }
-
     let query = "SELECT m.bucket_visit_count_threshold, " +
                 "       m.bucket_duration, " +
                 "       m.ignored_flag, " +
@@ -428,7 +427,6 @@ let PlacesInterestsStorage = {
     queryDeferred.promise.then(function(){
       returnDeferred.resolve(results);
     });
-
     return returnDeferred.promise;
   },
 
@@ -649,25 +647,24 @@ let PlacesInterestsStorage = {
    * @param   interest
    * @param   namespace
    * @param   locale
-   * @param   ifr_data
-   * @param   date_updated timestamp defaulted to now (in miliseconds)
+   * @param   ifrData
+   * @param   dateUpdated timestamp defaulted to now (in miliseconds)
    * @returns Promise for when the insrtion happens
    */
    // TODO put interest behind locale
-  addInterestIFR: function (interest,namespace,locale,date_updated,ifr_data,server_id) {
+  addInterestIFR: function (interest,namespace,locale,dateUpdated,ifrData,serverId) {
     let returnDeferred = Promise.defer();
-
     let stmt = this.db.createAsyncStatement(
       "INSERT OR REPLACE INTO moz_up_interests_ifr (interest_id,namespace_id,ifr_data,date_updated,server_id) " +
       "VALUES((SELECT id FROM moz_up_interests WHERE interest = :interest) "  +
       "       ,(SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale) " +
-      "       ,:ifr_data,:date_updated,:server_id)");
+      "       ,:ifrData,:dateUpdated,:serverId)");
     stmt.params.interest = interest;
     stmt.params.namespace = namespace;
     stmt.params.locale = locale;
-    stmt.params.ifr_data = JSON.stringify(ifr_data);
-    stmt.params.date_updated = date_updated || Date.now();
-    stmt.params.server_id = server_id;
+    stmt.params.ifrData = JSON.stringify(ifrData);
+    stmt.params.dateUpdated = dateUpdated || Date.now();
+    stmt.params.serverId = serverId || 0;
     stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
     stmt.finalize();
     return returnDeferred.promise;
@@ -779,9 +776,9 @@ let PlacesInterestsStorage = {
       promiseHandler.addToResultSet({ namespace: row.getResultByName("namespace"),
                                      locale: row.getResultByName("locale"),
                                      interest: row.getResultByName("interest"),
-                                     date_updated: row.getResultByName("date_updated"),
+                                     dateUpdated: row.getResultByName("date_updated"),
                                      ifr: JSON.parse(row.getResultByName("ifr_data")),
-                                     server_id: row.getResultByName("server_id")
+                                     serverId: row.getResultByName("server_id")
                                     });
     });
     promiseHandler.initResults([]);
@@ -792,8 +789,52 @@ let PlacesInterestsStorage = {
     stmt.executeAsync(promiseHandler);
     stmt.finalize();
     return returnDeferred.promise;
-  }
+  },
 
+  /**
+   * updates all namesapce rules timestamp
+   * @param   namespace
+   * @param   locale
+   * @param   lastmodifed timestamp received from the server in milliseconds
+   * @returns Promise for when the update complets
+   */
+  updateOutdatedInterests: function (namespace,locale,lastModified) {
+    // elete everything
+    let returnDeferred = Promise.defer();
+    let stmt = this.db.createAsyncStatement(
+      "UPDATE moz_up_interests_ifr SET date_updated = :lastModified WHERE " +
+      "date_updated < :lastModified AND " +
+      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE " +
+      "                namespace = :namespace AND locale = :locale)");
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.params.lastModified = lastModified;
+    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+    stmt.finalize();
+    return returnDeferred.promise;
+  },
+  /**
+   * deletes all namesapce rules with outdated timestamp
+   * @param   namespace
+   * @param   locale
+   * @param   lastmodifed timestamp received from the server in milliseconds
+   * @returns Promise for when the uber kill complets
+   */
+  deleteOutdatedInterests: function (namespace,locale,lastModified) {
+    // elete everything
+    let returnDeferred = Promise.defer();
+    let stmt = this.db.createAsyncStatement(
+      "DELETE FROM moz_up_interests_ifr WHERE " +
+      "date_updated < :lastModified AND " +
+      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE " +
+      "                namespace = :namespace AND locale = :locale)");
+    stmt.params.namespace = namespace;
+    stmt.params.locale = locale;
+    stmt.params.lastModified = lastModified;
+    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
+    stmt.finalize();
+    return returnDeferred.promise;
+  }
 }
 
 XPCOMUtils.defineLazyGetter(PlacesInterestsStorage, "db", function() {

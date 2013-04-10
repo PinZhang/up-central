@@ -72,6 +72,26 @@ add_task(function test_BasicHttpServer() {
   yield sendAndValidate("/readTestFile","json",jsonString,Promise.defer());
 });
 
+add_task(function test_MultipleGetRequests() {
+  let count = 1;
+  createPathHandler("/getitPlain","text/plain",function(request, response) {
+    response.write("hello " + count);
+  });
+  yield sendAndValidate("/getitPlain","text","hello 1",Promise.defer());
+  count++;
+  yield sendAndValidate("/getitPlain","text","hello 2",Promise.defer());
+  count++;
+  yield sendAndValidate("/getitPlain","text","hello 3",Promise.defer());
+
+  let jsonString = JSON.stringify({a:1});
+  createJSONStringHandler("/getitJSON",function(request,response) JSON.stringify({a:count}));
+  yield sendAndValidate("/getitJSON","json",JSON.stringify({a:count}),Promise.defer());
+  count++;
+  yield sendAndValidate("/getitJSON","json",JSON.stringify({a:count}),Promise.defer());
+  count++;
+  yield sendAndValidate("/getitJSON","json",JSON.stringify({a:count}),Promise.defer());
+});
+
 add_task(function test_InterestServerAPI() {
   setUpInterestAPIHandlers();
 

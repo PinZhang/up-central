@@ -153,3 +153,12 @@ function isIdentical(expected, actual, sortArrays) {
   }
   do_check_eq(JSON.stringify(sort(expected)), JSON.stringify(sort(actual)));
 }
+
+function duplicateObject(object) {
+  return JSON.parse(JSON.stringify(object));
+}
+
+function dumpObject(object,pointer) {
+  let pointer = pointer || " <--------\n";
+  dump(JSON.stringify(object) + pointer);
+}

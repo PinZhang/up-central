@@ -1222,6 +1222,7 @@ pref("dom.identity.enabled", false);
 pref("interests.enabled", false);
 pref("interests.userDomainWhitelist", 'mozilla.org, mozilla.com, about:config, about:profile');
 pref("interests.navigator.prompted", false);
+pref("interests.updateServerURI","");
 
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
