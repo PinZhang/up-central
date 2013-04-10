@@ -135,25 +135,6 @@ function setUpInterestAPIHandlers(path) {
  });
 }
 
-// code lifted from: https://github.com/prettycode/Object.identical.js
-function isIdentical(expected, actual, sortArrays) {
-  function sort(object) {
-    if (sortArrays == true && Array.isArray(object)) {
-      return object.sort();
-    }
-    else if (typeof object != "object" || object == null) {
-      return object;
-    }
-    return Object.keys(object).sort().map(function(key) {
-      return {
-        key: key,
-        value: sort(object[key])
-      };
-    });
-  }
-  do_check_eq(JSON.stringify(sort(expected)), JSON.stringify(sort(actual)));
-}
-
 function duplicateObject(object) {
   return JSON.parse(JSON.stringify(object));
 }
@@ -161,4 +142,23 @@ function duplicateObject(object) {
 function dumpObject(object,pointer) {
   let pointer = pointer || " <--------\n";
   dump(JSON.stringify(object) + pointer);
+}
+
+function isIdentical(expected, actual) {
+  if (expected == null) {
+    do_check_eq(expected, actual);
+  }
+  else if (typeof expected == "object") {
+    // Make sure all the keys match up
+    do_check_eq(Object.keys(expected) + "", Object.keys(actual));
+
+    // Recursively check each value individually
+    Object.keys(expected).forEach(key => {
+      dump("Checking key " + key);
+      isIdentical(expected[key], actual[key]);
+    });
+  }
+  else {
+    do_check_eq(expected, actual);
+  }
 }

@@ -617,24 +617,22 @@ InterestsWebAPI.prototype = {
     }).then(topInterests => {
       topInterests = JSON.parse(JSON.stringify(topInterests));
 
-      let interestNames = [];
-      let scoreTotal = 0;
-      for (let index=0; index < topInterests.length; index++) {
-        interestNames.push(topInterests[index].name);
-        scoreTotal += topInterests[index].score;
-      }
+      // Compute the max score reference to normalize scores
+      let maxScore = Math.max.apply(Math, topInterests.map(({score}) => score));
+
+      let interestNames = topInterests.map(({name}) => name);
       gInterestsService._getMetaForInterests(interestNames).then(metaData => {
         for (let index=0; index < interestNames.length; index++) {
           let interest = interestNames[index];
+          let {diversity, score} = topInterests[index];
+
           // obtain metadata and apply thresholds
           topInterests[index].recency.immediate = topInterests[index].recency.immediate >= metaData[interest].threshold;
           topInterests[index].recency.recent = topInterests[index].recency.recent >= metaData[interest].threshold;
           topInterests[index].recency.past = topInterests[index].recency.past >= metaData[interest].threshold;
-
-          // normalize scores
-          topInterests[index].score /= scoreTotal;
-          // round up diversity to closest number divisible by 5
-          topInterests[index].diversity = 5*Math.round(topInterests[index].diversity/5);
+          // Normalize score and diversity to an integer percent from [0-100]
+          topInterests[index].score = Math.round(score / maxScore * 100);
+          topInterests[index].diversity = Math.round(diversity);
         }
         exposeAll(topInterests);
         deferred.resolve(topInterests);

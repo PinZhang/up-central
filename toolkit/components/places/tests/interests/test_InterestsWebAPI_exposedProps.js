@@ -38,5 +38,5 @@ add_task(function test_getTopInterests_exposedProps() {
   do_check_eq(doIt("ret[0].recency.immediate"), true);
   do_check_eq(doIt("ret[0].recency.recent"), false);
   do_check_eq(doIt("ret[0].recency.past"), false);
-  do_check_eq(doIt("ret[0].score"), 1);
+  do_check_eq(doIt("ret[0].score"), 100);
 });
