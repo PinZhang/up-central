@@ -22,7 +22,7 @@ add_task(function test_NamespaceLocaleInsert() {
   yield PlacesInterestsStorage.addNamespace("abs","de",3000);
   // Explicitly query for the id because it's not exposed through APIs
   let stmt = PlacesInterestsStorage._db.createStatement(
-    "SELECT id, namespace, locale, lastModified FROM moz_up_interests_namespaces ORDER BY id ASC");
+    "SELECT id, namespace, locale, lastModified FROM moz_interests_namespaces ORDER BY id ASC");
 
   try {
     stmt.executeStep();
@@ -120,8 +120,8 @@ add_task(function test_addInterestIFR() {
   yield PlacesInterestsStorage.clearNamespaces();
 
   //all tables must be empty now
-  ["moz_up_interests_ifr",
-    "moz_up_interests_namespaces",
+  ["moz_interests_ifr",
+    "moz_interests_namespaces",
     "moz_interests_hosts",
     "moz_interests_visits",
     "moz_interests" ].forEach(table => do_check_eq(get_rowscount_in_table(table),0));

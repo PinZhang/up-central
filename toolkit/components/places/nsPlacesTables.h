@@ -179,8 +179,8 @@
   ")" \
 )
 
-#define CREATE_MOZ_UP_INTERESTS_NAMESPACES NS_LITERAL_CSTRING( \
-    "CREATE TABLE moz_up_interests_namespaces (" \
+#define CREATE_MOZ_INTERESTS_NAMESPACES NS_LITERAL_CSTRING( \
+    "CREATE TABLE moz_interests_namespaces (" \
     "  id INTEGER PRIMARY KEY" \
     ", namespace TEXT NOT NULL" \
     ", locale TEXT NOT NULL" \
@@ -188,8 +188,8 @@
   ")" \
 )
 
-#define CREATE_MOZ_UP_INTERESTS_IFR NS_LITERAL_CSTRING( \
-    "CREATE TABLE moz_up_interests_ifr (" \
+#define CREATE_MOZ_INTERESTS_IFR NS_LITERAL_CSTRING( \
+    "CREATE TABLE moz_interests_ifr (" \
     "  interest_id INTEGER NOT NULL DEFAULT 0" \
     ", namespace_id INTEGER NOT NULL DEFAULT 0" \
     ", ifr_data TEXT NOT NULL" \

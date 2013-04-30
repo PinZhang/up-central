@@ -141,10 +141,10 @@ const SQL = {
                    "FROM moz_interests " +
                    "WHERE interest = :interest)))",
   addNamespace:
-      "INSERT OR REPLACE INTO moz_up_interests_namespaces " +
+      "INSERT OR REPLACE INTO moz_interests_namespaces " +
       "(id,namespace,locale,lastModified) " +
       "VALUES((SELECT id " +
-              "FROM moz_up_interests_namespaces " + 
+              "FROM moz_interests_namespaces " + 
               "WHERE namespace = :namespace AND " +
                     "locale = :locale), " +
              ":namespace, " +
@@ -153,16 +153,16 @@ const SQL = {
 
   getNamespaces:
       "SELECT id,namespace,locale,lastModified " +
-      "FROM moz_up_interests_namespaces",
+      "FROM moz_interests_namespaces",
 
   addInterestIFR:
-      "INSERT OR REPLACE INTO moz_up_interests_ifr " +
+      "INSERT OR REPLACE INTO moz_interests_ifr " +
       "(interest_id,namespace_id,ifr_data,date_updated,server_id) " +
       "VALUES((SELECT id " +
                "FROM moz_interests " +
                "WHERE interest = :interest), "  +
              "(SELECT id " +
-               "FROM moz_up_interests_namespaces " + 
+               "FROM moz_interests_namespaces " + 
                "WHERE namespace = :namespace AND " +
                "locale = :locale)," +
              ":ifrData," +
@@ -170,10 +170,10 @@ const SQL = {
              ":serverId)",
 
   deleteInterestIFR:
-      "DELETE FROM moz_up_interests_ifr " +
+      "DELETE FROM moz_interests_ifr " +
       "WHERE namespace_id = " + 
               "(SELECT id " +
-               "FROM moz_up_interests_namespaces " + 
+               "FROM moz_interests_namespaces " + 
                "WHERE namespace = :namespace AND " +
                      "locale = :locale) AND " +
             "interest_id = " +
@@ -182,38 +182,38 @@ const SQL = {
                "WHERE interest = :interest)",
 
   clearNamespace:
-      "DELETE FROM moz_up_interests_ifr " +
+      "DELETE FROM moz_interests_ifr " +
       "WHERE namespace_id = " +
               "(SELECT id " +
-               "FROM moz_up_interests_namespaces " +
+               "FROM moz_interests_namespaces " +
                "WHERE namespace = :namespace AND " +
                      "locale = :locale)",
 
   getAllIFRs:
-      "SELECT moz_up_interests_namespaces.namespace, " +
+      "SELECT moz_interests_namespaces.namespace, " +
              "locale, " + 
              "interest, " +
              "date_updated as dateUpdated, " +
              "ifr_data as ifr, " +
              "server_id as serverId " +
-      "FROM moz_up_interests_ifr, moz_up_interests_namespaces, moz_interests " +
-      "WHERE namespace_id = moz_up_interests_namespaces.id AND " +
+      "FROM moz_interests_ifr, moz_interests_namespaces, moz_interests " +
+      "WHERE namespace_id = moz_interests_namespaces.id AND " +
             "interest_id = moz_interests.id" ,
 
   updateOutdatedInterests:
-      "UPDATE moz_up_interests_ifr " + 
+      "UPDATE moz_interests_ifr " + 
       "SET date_updated = :lastModified " +
       "WHERE date_updated < :lastModified AND " +
             "namespace_id = (SELECT id " +
-                            "FROM moz_up_interests_namespaces " +
+                            "FROM moz_interests_namespaces " +
                             "WHERE namespace = :namespace AND " +
                             "locale = :locale)",
 
   deleteOutdatedInterests:
-      "DELETE FROM moz_up_interests_ifr " +
+      "DELETE FROM moz_interests_ifr " +
       "WHERE date_updated < :lastModified AND " +
             "namespace_id = (SELECT id " +
-                            "FROM moz_up_interests_namespaces " +
+                            "FROM moz_interests_namespaces " +
                             "WHERE namespace = :namespace AND " +
                                   "locale = :locale)"
 };
@@ -520,8 +520,8 @@ let PlacesInterestsStorage = {
     let returnDeferred = Promise.defer();
     let promises = [];
     let deferred = Promise.defer();
-    promises.push(this._execute("DELETE FROM moz_up_interests_ifr"));
-    promises.push(this._execute("DELETE FROM moz_up_interests_namespaces"));
+    promises.push(this._execute("DELETE FROM moz_interests_ifr"));
+    promises.push(this._execute("DELETE FROM moz_interests_namespaces"));
     promises.push(this._execute("DELETE FROM moz_interests_hosts"));
     promises.push(this._execute("DELETE FROM moz_interests_visits"));
     promises.push(this._execute("DELETE FROM moz_interests"));
