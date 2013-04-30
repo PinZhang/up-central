@@ -15,14 +15,14 @@ function run_test() {
 // Test adding interest visits going older in time
 add_task(function addGoingOlder() {
   let interest = "cars";
-  yield PlacesInterestsStorage.addInterest(interest);
+  yield addInterest(interest);
 
   // Add one visit for now and make sure there's only one
   yield PlacesInterestsStorage.addInterestVisit(interest);
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 1);
-    do_check_eq(result.recent, 0);
-    do_check_eq(result.past, 0);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.cars.immediate, 1);
+    do_check_eq(result.cars.recent, 0);
+    do_check_eq(result.cars.past, 0);
   });
 
   // Add a couple visits from 3 weeks ago for recent
@@ -30,10 +30,10 @@ add_task(function addGoingOlder() {
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: recentTime});
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: recentTime});
 
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 1);
-    do_check_eq(result.recent, 2);
-    do_check_eq(result.past, 0);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.cars.immediate, 1);
+    do_check_eq(result.cars.recent, 2);
+    do_check_eq(result.cars.past, 0);
   });
 
   // Add a few visits from 5 weeks ago for past
@@ -42,26 +42,26 @@ add_task(function addGoingOlder() {
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: pastTime});
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: pastTime});
 
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 1);
-    do_check_eq(result.recent, 2);
-    do_check_eq(result.past, 3);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.cars.immediate, 1);
+    do_check_eq(result.cars.recent, 2);
+    do_check_eq(result.cars.past, 3);
   });
 });
 
 // Test adding interest visits going more recent in time
 add_task(function addGoingNewer() {
   let interest = "sports";
-  yield PlacesInterestsStorage.addInterest(interest);
+  yield addInterest(interest);
 
   // Add a visit from 5 weeks ago for past
   let pastTime = Date.now() - 5 * 7 * 24 * 60 * 60 * 1000;
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: pastTime});
 
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 0);
-    do_check_eq(result.recent, 0);
-    do_check_eq(result.past, 1);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.sports.immediate, 0);
+    do_check_eq(result.sports.recent, 0);
+    do_check_eq(result.sports.past, 1);
   });
 
   // Add a couple visits from 3 weeks ago for recent
@@ -69,19 +69,19 @@ add_task(function addGoingNewer() {
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: recentTime});
   yield PlacesInterestsStorage.addInterestVisit(interest, {visitTime: recentTime});
 
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 0);
-    do_check_eq(result.recent, 2);
-    do_check_eq(result.past, 1);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.sports.immediate, 0);
+    do_check_eq(result.sports.recent, 2);
+    do_check_eq(result.sports.past, 1);
   });
 
   // Add a few visits for now
   yield PlacesInterestsStorage.addInterestVisit(interest);
   yield PlacesInterestsStorage.addInterestVisit(interest);
   yield PlacesInterestsStorage.addInterestVisit(interest);
-  yield PlacesInterestsStorage.getBucketsForInterest(interest).then(function(result) {
-    do_check_eq(result.immediate, 3);
-    do_check_eq(result.recent, 2);
-    do_check_eq(result.past, 1);
+  yield PlacesInterestsStorage.getBucketsForInterests([interest]).then(function(result) {
+    do_check_eq(result.sports.immediate, 3);
+    do_check_eq(result.sports.recent, 2);
+    do_check_eq(result.sports.past, 1);
   });
 });

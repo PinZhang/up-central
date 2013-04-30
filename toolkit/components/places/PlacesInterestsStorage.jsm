@@ -6,596 +6,427 @@
 "use strict";
 
 this.EXPORTED_SYMBOLS = [
-  "PlacesInterestsStorage"
-]
+  "PlacesInterestsStorage",
+];
 
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const Cr = Components.results;
-const Cu = Components.utils;
+const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils", "resource://gre/modules/PlacesUtils.jsm");
 
 const MS_PER_DAY = 86400000;
-const DEFAULT_THRESHOLD = 5;
-const DEFAULT_DURATION = 14;
-const INTEREST_HOST_QUERY_LIMIT = 100;
 
-/*
- * Generates a string for use with the SQLite client for binding parameters by array indexing
+/**
+ * Store the SQL statements used for this file together for easy reference
  */
-function genSQLParamList(aNumber) {
-  let paramStr = "";
-  for (let index = 1; index <= aNumber; index++) {
-    paramStr += "?" + index;
-    if (index < aNumber) {
-      paramStr += ",";
-    }
-  }
-  return paramStr
-}
+const SQL = {
+  addInterestHost:
+    "INSERT OR IGNORE INTO moz_interests_hosts (interest_id, host_id) " +
+    "VALUES((SELECT id " +
+            "FROM moz_interests " +
+            "WHERE interest = :interest), " +
+           "(SELECT id " +
+            "FROM (SELECT id, host " +
+                  "FROM moz_hosts " +
+                  "ORDER BY frecency DESC " +
+                  "LIMIT 200) " +
+            "WHERE host = :host))",
 
-function AsyncPromiseHandler(deferred, rowCallback) {
-  this.deferred = deferred;
-  this.rowCallback = rowCallback;
-  this.result = undefined;
-};
+  addInterestVisit:
+    "REPLACE INTO moz_interests_visits " +
+    "SELECT id, " +
+           "IFNULL(day, :day), " +
+           "IFNULL(visits, 0) + IFNULL(:visits, 1) " +
+    "FROM moz_interests " +
+    "LEFT JOIN moz_interests_visits " +
+    "ON interest_id = id AND " +
+       "day = :day " +
+    "WHERE interest = :interest",
 
-AsyncPromiseHandler.prototype = {
-  initResults: function(value) {
-      this.result = value;
-  },
-  addToResultObject: function(key,value) {
-    if (!this.result) {
-      this.result = {};
-    }
-    this.result[key] = value;
-  },
-  addToResultSet: function(value) {
-    if (!this.result) {
-      this.result = [];
-    }
-    this.result.push(value);
-  },
-  handleError: function (error) {
-    this.deferred.reject(error);
-  },
-  handleResult: function (result) {
-    if (this.rowCallback) {
-      let row = undefined;
-      while (row = result.getNextRow()) {
-        this.rowCallback(row);
-      }
-    }
-  },
-  handleCompletion: function (reason) {
-    switch (reason) {
-      case Ci.mozIStorageStatementCallback.REASON_FINISHED:
-        this.deferred.resolve(this.result);
-        break;
+  clearRecentVisits:
+    "DELETE FROM moz_interests_visits " +
+    "WHERE day > :dayCutoff",
 
-      case Ci.mozIStorageStatementCallback.REASON_CANCELLED:
-        this.deferred.reject(new Error("statement cancelled"));
-        break;
+  getBucketsForInterests:
+    "SELECT interest, " +
+           "SUM(CASE WHEN day > :today - duration THEN visits " +
+                    "ELSE 0 END) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) immediate, " +
+           "SUM(CASE WHEN day > :today - duration * 2 AND " +
+                         "day <= :today - duration THEN visits " +
+                    "ELSE 0 END) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) recent, " +
+           "SUM(CASE WHEN day <= :today - duration * 2 THEN visits " +
+                    "ELSE 0 END) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) past " +
+    "FROM moz_interests " +
+    "LEFT JOIN moz_interests_visits " +
+    "ON interest_id = id " +
+    "WHERE interest IN (:interests) " +
+    "GROUP BY id",
 
-      case Ci.mozIStorageStatementCallback.REASON_ERROR:
-        this.deferred.reject(new Error("execution errors"));
-        break;
+  getDiversityForInterests:
+    "SELECT interest, " +
+           "COUNT(interest_id) * 100.0 / " +
+             "(SELECT COUNT(DISTINCT host_id) " +
+              "FROM moz_interests_hosts) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) diversity " +
+    "FROM moz_interests " +
+    "LEFT JOIN moz_interests_hosts " +
+    "ON interest_id = id " +
+    "WHERE interest IN (:interests) " +
+    "GROUP BY id",
 
-      default:
-        this.deferred.reject(new Error("unknown completion reason"));
-        break;
-    }
-  }
+  getInterests:
+    "SELECT * " +
+    "FROM moz_interests " +
+    "WHERE interest IN (:interests)",
+
+  getRecentHistory:
+    "SELECT title, url, visitCount, visitDate " +
+    "FROM moz_places " +
+    "JOIN (SELECT place_id, " +
+                 "COUNT(1) visitCount, " +
+                 "visit_date/1000 - visit_date/1000 % :MS_PER_DAY visitDate " +
+          "FROM moz_historyvisits " +
+          "WHERE visit_date >= (:dayCutoff+1) * :MS_PER_DAY*1000 " +
+          "GROUP BY place_id, visitDate) " +
+    "ON place_id = id " +
+    "WHERE hidden = 0 AND " +
+          "visit_count > 0",
+
+  getScoresForInterests:
+    "SELECT interest name, " +
+           "IFNULL(SUM(visits * (1 - (:today - day) / 29.0)), 0) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) score " +
+    "FROM moz_interests " +
+    "LEFT JOIN moz_interests_visits " +
+    "ON interest_id = id AND " +
+       "day >= :today - 28 " +
+    "WHERE interest IN (:interests) " +
+    "GROUP BY id " +
+    "ORDER BY score DESC",
+
+  getScoresForNamespace:
+    "SELECT interest name, " +
+           "IFNULL(SUM(visits * (1 - (:today - day) / 29.0)), 0) * " +
+             "(NOT IFNULL(:checkSharable, 0) OR sharable) score " +
+    "FROM moz_interests " +
+    "LEFT JOIN moz_interests_visits " +
+    "ON interest_id = id AND " +
+       "day >= :today - 28 " +
+    "WHERE namespace = :namespace " +
+    "GROUP BY id " +
+    "ORDER BY score DESC " +
+    "LIMIT IFNULL(:interestLimit, 5)",
+
+  setInterest:
+    "REPLACE INTO moz_interests " +
+    "VALUES((SELECT id " +
+            "FROM moz_interests " +
+            "WHERE interest = :interest), " +
+           ":interest, " +
+           ":namespace, " +
+           "IFNULL(:duration, " +
+                  "(SELECT duration " +
+                   "FROM moz_interests " +
+                   "WHERE interest = :interest)), " +
+           "IFNULL(:threshold, " +
+                  "(SELECT threshold " +
+                   "FROM moz_interests " +
+                   "WHERE interest = :interest)), " +
+           "IFNULL(:sharable, " +
+                  "(SELECT sharable " +
+                   "FROM moz_interests " +
+                   "WHERE interest = :interest)))",
+  addNamespace:
+      "INSERT OR REPLACE INTO moz_up_interests_namespaces " +
+      "(id,namespace,locale,lastModified) " +
+      "VALUES((SELECT id " +
+              "FROM moz_up_interests_namespaces " + 
+              "WHERE namespace = :namespace AND " +
+                    "locale = :locale), " +
+             ":namespace, " +
+             ":locale, " +
+             ":lastModified)",
+
+  getNamespaces:
+      "SELECT id,namespace,locale,lastModified " +
+      "FROM moz_up_interests_namespaces",
+
+  addInterestIFR:
+      "INSERT OR REPLACE INTO moz_up_interests_ifr " +
+      "(interest_id,namespace_id,ifr_data,date_updated,server_id) " +
+      "VALUES((SELECT id " +
+               "FROM moz_interests " +
+               "WHERE interest = :interest), "  +
+             "(SELECT id " +
+               "FROM moz_up_interests_namespaces " + 
+               "WHERE namespace = :namespace AND " +
+               "locale = :locale)," +
+             ":ifrData," +
+             ":dateUpdated," +
+             ":serverId)",
+
+  deleteInterestIFR:
+      "DELETE FROM moz_up_interests_ifr " +
+      "WHERE namespace_id = " + 
+              "(SELECT id " +
+               "FROM moz_up_interests_namespaces " + 
+               "WHERE namespace = :namespace AND " +
+                     "locale = :locale) AND " +
+            "interest_id = " +
+              "(SELECT id " +
+               "FROM moz_interests " +
+               "WHERE interest = :interest)",
+
+  clearNamespace:
+      "DELETE FROM moz_up_interests_ifr " +
+      "WHERE namespace_id = " +
+              "(SELECT id " +
+               "FROM moz_up_interests_namespaces " +
+               "WHERE namespace = :namespace AND " +
+                     "locale = :locale)",
+
+  getAllIFRs:
+      "SELECT moz_up_interests_namespaces.namespace, " +
+             "locale, " + 
+             "interest, " +
+             "date_updated as dateUpdated, " +
+             "ifr_data as ifr, " +
+             "server_id as serverId " +
+      "FROM moz_up_interests_ifr, moz_up_interests_namespaces, moz_interests " +
+      "WHERE namespace_id = moz_up_interests_namespaces.id AND " +
+            "interest_id = moz_interests.id" ,
+
+  updateOutdatedInterests:
+      "UPDATE moz_up_interests_ifr " + 
+      "SET date_updated = :lastModified " +
+      "WHERE date_updated < :lastModified AND " +
+            "namespace_id = (SELECT id " +
+                            "FROM moz_up_interests_namespaces " +
+                            "WHERE namespace = :namespace AND " +
+                            "locale = :locale)",
+
+  deleteOutdatedInterests:
+      "DELETE FROM moz_up_interests_ifr " +
+      "WHERE date_updated < :lastModified AND " +
+            "namespace_id = (SELECT id " +
+                            "FROM moz_up_interests_namespaces " +
+                            "WHERE namespace = :namespace AND " +
+                                  "locale = :locale)"
 };
 
 let PlacesInterestsStorage = {
+  //////////////////////////////////////////////////////////////////////////////
+  //// PlacesInterestsStorage
+
   /**
-   * Convert a date to the UTC midnight for the date
+   * Record the pair of interest and host
    *
-   * @param   [optional] time
-   *          Reference date/time to round defaulting to today
-   * @returns Numeric value corresponding to the date's UTC 00:00:00.000
-   */
-  _getRoundedTime: function(time) {
-    // Default to now if no time is provided
-    time = time || Date.now();
-    // Round to the closest day
-    return time - time % MS_PER_DAY;
-  },
-
-  addInterest: function (aInterest) {
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "INSERT OR IGNORE INTO moz_up_interests (interest) VALUES(:interest)");
-    stmt.params.interest = aInterest;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
-  },
-
-  /**
-   * Increments the number of visits for an interest for a day
-   * @param   aInterest
-   *          The interest string
-   * @param   {visitTime, visitCount}
-   *          An object with the option names as keys
-   *          visitTime: Date/time to associate with the visit, defaulting to today
-   *          visitCount: The number of counts to add, defaulting to 1
-   * @returns Promise for when the interest's visit is added
-   */
-  addInterestVisit: function(interest, optional={}){
-    let {visitTime, visitCount} = optional;
-    visitCount = visitCount || 1;
-
-    let deferred = Promise.defer();
-    // Increment or initialize the visit count for the interest for the date
-    let stmt = this.db.createAsyncStatement(
-      "REPLACE INTO moz_up_interests_visits " +
-      "SELECT i.id, IFNULL(v.date_added, :dateAdded), IFNULL(v.visit_count, 0) + :visitCount " +
-      "FROM moz_up_interests i " +
-      "LEFT JOIN moz_up_interests_visits v " +
-        "ON v.interest_id = i.id AND v.date_added = :dateAdded " +
-      "WHERE i.interest = :interest");
-    stmt.params.interest = interest;
-    stmt.params.visitCount = visitCount;
-    stmt.params.dateAdded = this._getRoundedTime(visitTime);
-    stmt.executeAsync({
-      handleResult: function (result) {},
-      handleCompletion: function (reason) {
-        deferred.resolve();
-      },
-      handleError: function (error) {
-        deferred.reject(error);
-      }
-    });
-    stmt.finalize();
-
-    return deferred.promise;
-  },
-
-  /**
-   * adds interest,host,date tuple to the moz_up_interests_hosts
    * @param   interest
-   *          The interest string
+   *          The full interest string with namespace
    * @param   host
-   *          The host string
-   * @param   [optional] visitTime
-   *          Date/time to associate with the visit defaulting to today
+   *          The host string to associate with the interest
    * @returns Promise for when the row is added
    */
-  addInterestForHost: function (aInterest, aHost) {
-    let returnDeferred = Promise.defer();
-    Cu.reportError(typeof(aInterest));
-    Cu.reportError("aInterest: " + aInterest);
-    Cu.reportError("aHost: " + aHost);
-    let stmt = this.db.createAsyncStatement(
-      "INSERT OR IGNORE INTO moz_up_interests_hosts (interest_id, host_id) " +
-      "VALUES((SELECT id FROM moz_up_interests WHERE interest =:interest) " +
-      ", (SELECT id FROM moz_hosts WHERE host = :host))" );
-    stmt.params.host = aHost;
-    stmt.params.interest = aInterest;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
-  },
-
-  getInterestsForHost: function(aHost) {
-    let returnDeferred = Promise.defer();
-    let promiseHandler = new AsyncPromiseHandler(returnDeferred, function(row) {
-      let interest = row.getResultByName("interest");
-      promiseHandler.addToResultSet(interest);
+  addInterestHost: function PIS_addInterestHost(interest, host) {
+    return this._execute(SQL.addInterestHost, {
+      params: {
+        host: host,
+        interest: interest,
+      },
     });
-
-    let stmt = this.db.createAsyncStatement(
-      "SELECT interest FROM moz_up_interests i, moz_up_interests_hosts ih, moz_hosts h " +
-      "WHERE h.host = :host AND h.id = ih.host_id AND i.id = ih.interest_id");
-    stmt.params.host = aHost;
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-    return returnDeferred.promise;
-  },
-
-  getHostsForInterest: function (aInterest) {
-    let returnDeferred = Promise.defer();
-    let promiseHandler = new AsyncPromiseHandler(returnDeferred, function(row) {
-      let host = row.getResultByName("host");
-      promiseHandler.addToResultSet(host);
-    });
-
-    let stmt = this.db.createStatement(
-      "SELECT h.host AS host FROM moz_hosts h , moz_up_interests i, moz_up_interests_hosts ih " +
-      "WHERE i.interest = :interest AND h.id = ih.host_id AND i.id = ih.interest_id");
-    stmt.params.interest = aInterest;
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-    return returnDeferred.promise;
   },
 
   /**
-   * Given a list of interest names, obtains data about those interests, ordered by score
-   * This respects the user's ignore list
-   * @param     interests
-   *            A list of interests to include in the query
-   * @return Promise with the interest data
+   * Increment or initialize the number of visits for an interest on a day
+   *
+   * @param   interest
+   *          The full interest string with namespace
+   * @param   [optional] visitData {see below}
+   *          visitCount: Number of visits to add defaulting to 1
+   *          visitTime: Date/time to associate with the visit defaulting to now
+   * @returns Promise for when the row is added/updated
    */
-  getInterests: function checkIntersts(interests) {
-    let returnDeferred = Promise.defer();
-    let sql = "SELECT i.interest, v.visit_count, (:currentTs-v.date_added)/:MS_PER_DAY 'days_ago' " +
-              "FROM moz_up_interests i " +
-              "JOIN moz_up_interests_visits v ON v.interest_id = i.id " +
-              "JOIN moz_up_interests_meta m ON m.interest_id = i.id " +
-              "WHERE i.interest IN (" + genSQLParamList(interests.length) + ") " +
-              "AND m.ignored_flag = 0 " +
-              "AND m.date_updated != 0 " +
-              "ORDERY BY v.date_added DESC";
-    let stmt = this.db.createStatement(sql);
-    stmt.params.MS_PER_DAY = MS_PER_DAY;
-    stmt.params.currentTs = currentTs;
-    stmt.params.INTEREST_HOST_QUERY_LIMIT = INTEREST_HOST_QUERY_LIMIT;
-
-
-    return returnDeferred.promise;
-  },
-
-  /**
-   * Obtains a list of interests that occured 28 days from query time, ordered by score.
-   * @param   interestLimit
-   *          The number of interests to limit the result by.
-   *          A negative value will not limit the results. Defaults to 5
-   * @param   filterIgnores [optional]
-   *          Optional parameter that sets whether to filter ignored and to-be downloaded interests. Defaults to true.
-   * @returns Promise with the interest and counts for each bucket
-   */
-  getTopInterests: function getTopInterests(interestLimit, filterIgnores=true) {
-    let returnDeferred = Promise.defer();
-    interestLimit = interestLimit || 5;
-
-    if (typeof interestLimit != 'number' || interestLimit < 1) {
-      return returnDeferred.reject("invalid input");
-    }
-
-    // Figure out the cutoff time for computation
-    let currentTs = this._getRoundedTime();
-    let cutOffDay = currentTs - 28 * MS_PER_DAY;
-
-    let sql = "SELECT i.interest, v.visit_count, (:currentTs-v.date_added)/:MS_PER_DAY 'days_ago' " +
-              "FROM moz_up_interests i " +
-              "JOIN moz_up_interests_visits v ON v.interest_id = i.id ";
-    if (filterIgnores) {
-      sql += "JOIN moz_up_interests_meta m ON m.interest_id = i.id " +
-             "WHERE v.date_added >= :cutOffDay " +
-             "AND m.ignored_flag = 0 " +
-             "AND m.date_updated != 0 ";
-    } else {
-      sql += "WHERE v.date_added >= :cutOffDay ";
-    }
-    sql += "ORDER BY v.date_added DESC";
-
-    let stmt = this.db.createStatement(sql);
-    stmt.params.MS_PER_DAY = MS_PER_DAY;
-    stmt.params.currentTs = currentTs;
-    stmt.params.cutOffDay = cutOffDay;
-
-    let scores = {};
-    let topInterests = [];
-    let queryDeferred = Promise.defer();
-
-    let promiseHandler = new AsyncPromiseHandler(queryDeferred,function(row) {
-      let interest = row.getResultByName("interest");
-      let visitCount = row.getResultByName("visit_count");
-      let daysAgo = row.getResultByName("days_ago");
-
-      if (!scores.hasOwnProperty(interest)) {
-        scores[interest] = 0;
-      }
-
-      scores[interest] += visitCount * (1 - (daysAgo/29))
+  addInterestVisit: function PIS_addInterestVisit(interest, visitData={}) {
+    let {visitCount, visitTime} = visitData;
+    return this._execute(SQL.addInterestVisit, {
+      params: {
+        day: this._convertDateToDays(visitTime),
+        interest: interest,
+        visits: visitCount,
+      },
     });
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
+  },
 
-    queryDeferred.promise.then(function() {
-      // sort scores and cut off
-      let interests = Object.keys(scores);
-      for (let interestIndex=0; interestIndex < interests.length; interestIndex++) {
-        let interest = interests[interestIndex];
-        topInterests.push({name: interest, score: scores[interest]});
-      }
-      scores = null;
-
-      topInterests.sort(function(x, y){return y.score - x.score});
-      if (interestLimit > -1) {
-        topInterests = topInterests.slice(0, interestLimit);
-      }
-      returnDeferred.resolve(topInterests);
+  /**
+   * Clear recent visits for all interests
+   *
+   * @param   daysAgo
+   *          Number of recent days to be cleared
+   * @returns Promise for when the visits are deleted
+   */
+  clearRecentVisits: function PIS_clearRecentVisits(daysAgo) {
+    return this._execute(SQL.clearRecentVisits, {
+      params: {
+        dayCutoff: this._convertDateToDays() - daysAgo,
+      },
     });
-
-    return returnDeferred.promise;
   },
 
   /**
-   * Updates the ignore flag for an interest
-   * @param     interest
-   *            The interest name to update
-   * @param     value
-   *            Value is either true or false
+   * Generate buckets data for interests
+   *
+   * @param   interests
+   *          Array of interest strings
+   * @param   [optional] options {see below}
+   *          checkSharable: Boolean for 0-buckets for unshared defaulting false
+   * @returns Promise with each interest as keys on an object with bucket data
    */
-  updateIgnoreFlagForInterest: function(interest, value) {
-    let returnDeferred = Promise.defer();
-    let query = "UPDATE moz_up_interests_meta " +
-                "SET ignored_flag = :value " +
-                "WHERE interest_id = (" +
-                "  SELECT id " +
-                "  FROM moz_up_interests " +
-                "  WHERE interest = :interest" +
-                ")";
-    let stmt = this.db.createAsyncStatement(query);
-    stmt.params.interest = interest;
-    stmt.params.value = value;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+  getBucketsForInterests: function PIS_getBucketsForInterests(interests, options={}) {
+    let {checkSharable} = options;
+    return this._execute(SQL.getBucketsForInterests, {
+      columns: ["immediate", "recent", "past"],
+      key: "interest",
+      listParams: {
+        interests: interests,
+      },
+      params: {
+        checkSharable: checkSharable,
+        today: this._convertDateToDays(),
+      },
+    });
   },
 
   /**
-   * Stores metadata for an interest. If the optional parameters are not passed, existing values will be preserved.
-   * @param     interestName
-   *            Interest name to store data for
-   * @param     {threshold, duration, ignored, dateUpdated}
-   *            An object with the option names as keys
-   *            threshold: The visit count threshold that counts as a positive signal in bucket computation
-   *            duration: The length of the 'immediate' and 'recent' periods in bucket computation
-   *            ignored: Whether or not to use this interest when computing interest information
-   *            dateUpdated: The timestamp in milliseconds of the day this interest was last updated. 0 means it was never updated. by default dateUpdated is today's date timestamp
-   * @returns   promise for when the data is set
+   * Compute diversity values for interests
+   *
+   * @param   interests
+   *          Array of interest strings
+   * @param   [optional] options {see below}
+   *          checkSharable: Boolean for 0-diversity for unshared defaulting false
+   * @returns Promise with each interest as keys on an object with diversity
    */
-  setMetaForInterest: function(interestName, optional={}) {
-    let returnDeferred = Promise.defer();
-
-    let {threshold, duration, ignored, dateUpdated} = optional;
-
-    threshold = (typeof threshold == 'number') ? threshold : null;
-    duration = (typeof duration == 'number') ? duration : null;
-    ignored = (typeof ignored == 'boolean') ? ignored : null;
-    dateUpdated = (typeof dateUpdated == 'undefined') ? this._getRoundedTime() : dateUpdated;
-
-    let query = "REPLACE INTO moz_up_interests_meta " +
-                "SELECT i.id," +
-                "  coalesce(:threshold, m.bucket_visit_count_threshold), " +
-                "  coalesce(:duration, m.bucket_duration), " +
-                "  coalesce(:ignored, m.ignored_flag), " +
-                "  coalesce(:dateUpdated, m.date_updated) " +
-                "FROM moz_up_interests i " +
-                "LEFT JOIN moz_up_interests_meta m " +
-                "  ON m.interest_id = i.id " +
-                "WHERE i.interest = :interestName";
-    let stmt = this.db.createAsyncStatement(query);
-    stmt.params.interestName = interestName;
-    stmt.params.threshold = threshold;
-    stmt.params.duration = duration;
-    stmt.params.ignored = ignored;
-    stmt.params.dateUpdated = dateUpdated;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+  getDiversityForInterests: function PIS_getDiversityForInterests(interests, options={}) {
+    let {checkSharable} = options;
+    return this._execute(SQL.getDiversityForInterests, {
+      columns: ["diversity"],
+      key: "interest",
+      listParams: {
+        interests: interests,
+      },
+      params: {
+        checkSharable: checkSharable,
+      },
+    });
   },
 
   /**
    * Obtains interest metadata for a list of interests
-   * @param interests
-            An array of interest names
+   * @param   interests
+              An array of interest names
    * @returns A promise with the interest metadata for each interest
    */
-  getMetaForInterests: function(interests) {
-    let returnDeferred = Promise.defer();
-
-    if (!Array.isArray(interests)) {
-      return returnDeferred.reject(Error("invalid input"));
-    }
-    let query = "SELECT m.bucket_visit_count_threshold, " +
-                "       m.bucket_duration, " +
-                "       m.ignored_flag, " +
-                "       m.date_updated, " +
-                "       i.interest " +
-                "FROM moz_up_interests_meta m " +
-                "JOIN moz_up_interests i ON m.interest_id = i.id " +
-                "WHERE i.interest IN (" + genSQLParamList(interests.length) + ") ";
-
-    let stmt = this.db.createAsyncStatement(query);
-
-
-    for (let i = 0; i < interests.length; i++) {
-      stmt.bindByIndex(i, interests[i]);
-    }
-    let results = {};
-
-    let queryDeferred = Promise.defer();
-    let promiseHandler = new AsyncPromiseHandler(queryDeferred,function(row) {
-      results[row.getResultByName('interest')] = {
-        threshold: row.getResultByName('bucket_visit_count_threshold'),
-        duration: row.getResultByName('bucket_duration'),
-        ignored: row.getResultByName('ignored_flag') ? true : false,
-        dateUpdated: row.getResultByName('date_updated'),
-      }
+  getInterests: function PIS_getInterests(interests) {
+    return this._execute(SQL.getInterests, {
+      columns: ["duration", "sharable", "threshold"],
+      key: "interest",
+      listParams: {
+        interests: interests,
+      },
     });
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-
-    queryDeferred.promise.then(function(){
-      returnDeferred.resolve(results);
-    });
-    return returnDeferred.promise;
   },
 
   /**
-   * computes buckets data for an interest
-   * @param   interest
-   *          The interest name string
-   * @returns Promise with the interest and counts for each bucket
+   * Fetch recent history visits to process by page and day of visit
+   *
+   * @param   daysAgo
+   *          Number of days of recent history to fetch
+   * @param   handlePageForDay
+   *          Callback handling a day's visits for a page
+   * @returns Promise for when all the recent pages have been processed
    */
-  getBucketsForInterest: function(interest) {
-    let deferred = Promise.defer();
-
-    // Figure out the cutoff times for each bucket
-    let currentTs = this._getRoundedTime();
-    this.getMetaForInterests([interest]).then(function(metaData) {
-
-      let duration;
-
-      if (Object.keys(metaData).length == 0) {
-        // in case no metadata exists for this interests
-        duration = DEFAULT_DURATION;
-      } else {
-        duration = metaData[interest].duration || DEFAULT_DURATION;
-      }
-
-      let immediateBucket = currentTs - duration * MS_PER_DAY;
-      let recentBucket = currentTs - duration*2 * MS_PER_DAY;
-
-      // Aggregate the visits into each bucket for the interest
-      let stmt = PlacesInterestsStorage.db.createAsyncStatement(
-        "SELECT CASE WHEN v.date_added > :immediateBucket THEN 'immediate' " +
-                    "WHEN v.date_added > :recentBucket THEN 'recent' " +
-                    "ELSE 'past' END AS bucket, " +
-                    "v.visit_count " +
-        "FROM moz_up_interests i " +
-        "JOIN moz_up_interests_visits v ON v.interest_id = i.id " +
-        "WHERE i.interest = :interest");
-      stmt.params.interest = interest;
-      stmt.params.immediateBucket = immediateBucket;
-      stmt.params.recentBucket = recentBucket;
-
-      // Initialize the result to have something for each bucket
-      let result = {
-        immediate: 0,
-        interest: interest,
-        past: 0,
-        recent: 0
-      };
-
-      let queryDeferred = Promise.defer();
-      let promiseHandler = new AsyncPromiseHandler(queryDeferred, function(row) {
-        let bucket = row.getResultByName("bucket");
-        let visitCount = row.getResultByName("visit_count");
-        result[bucket] += visitCount;
-      });
-      stmt.executeAsync(promiseHandler);
-      stmt.finalize();
-
-      queryDeferred.promise.then(function(){
-        deferred.resolve(result);
-      });
+  getRecentHistory: function PIS_getRecentHistory(daysAgo, handlePageForDay) {
+    return this._execute(SQL.getRecentHistory, {
+      columns: ["title", "url", "visitCount", "visitDate"],
+      onRow: handlePageForDay,
+      params: {
+        dayCutoff: this._convertDateToDays() - daysAgo,
+        MS_PER_DAY: MS_PER_DAY,
+      },
     });
-
-    return deferred.promise;
   },
+
   /**
-   * computes divercity values for interests
+   * Get a sorted array of interests by score
+   *
    * @param   interests
-   *          array of interest name strings
-   * @returns Promise with an object keyed on interest name, valued with diversity
+   *          Array of interest strings to select
+   * @param   [optional] options {see below}
+   *          checkSharable: Boolean for 0-score for unshared defaulting false
+   * @returns Promise with the array of interest names and scores
    */
-  getDiversityForInterests: function(interests) {
-    let deferred = Promise.defer();
-
-    // test if input is correct
-    if (!Array.isArray(interests)) {
-      return deferred.reject(Error("invalid input"));
-    }
-
-    // compute total number of hosts
-    let totalHosts = 1;
-    let hostsQueryDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement("SELECT COUNT(1) FROM moz_hosts");
-    stmt.executeAsync(new AsyncPromiseHandler(hostsQueryDeferred,function(row) {
-      totalHosts = row.getResultByIndex(0) || 1;
-    }));
-    stmt.finalize();
-
-    hostsQueryDeferred.promise.then(function() {
-      // create a list of coma separate interst names
-      let nameList = "";
-      interests.forEach(function(name) {
-        nameList +=  ((nameList == "") ? " '" : " ,'") + name + "'";
-      });
-
-      let stmt = PlacesInterestsStorage.db.createAsyncStatement(
-        "SELECT i.interest interest, ROUND(count(1) * 100.0 / :total, 2) diversity " +
-        "FROM moz_up_interests i " +
-        "JOIN moz_up_interests_hosts h ON h.interest_id = i.id " +
-        "WHERE i.interest in  ( " + nameList + ") " +
-        "GROUP BY  i.interest ");
-      stmt.params.total = totalHosts;
-      let promiseHandler = new AsyncPromiseHandler(deferred,function(row) {
-        promiseHandler.addToResultObject(row.getResultByName("interest"),row.getResultByName("diversity"));
-      });
-      promiseHandler.initResults({});
-      stmt.executeAsync(promiseHandler);
-      stmt.finalize();
+  getScoresForInterests: function PIS_getScoresForInterests(interests, options={}) {
+    let {checkSharable} = options;
+    return this._execute(SQL.getScoresForInterests, {
+      columns: ["name", "score"],
+      listParams: {
+        interests: interests,
+      },
+      params: {
+        checkSharable: checkSharable,
+        today: this._convertDateToDays(),
+      },
     });
-
-    return deferred.promise;
-  },
-  /**
-   * Clears interests_visits table from N last days worth of days
-   * @param   daysAgo
-   *          Number of days to be cleaned
-   * @returns Promise for when the table will be cleaned up
-   */
-   clearRecentInterests: function (daysAgo) {
-    let returnDeferred = Promise.defer();
-    let timeStamp = this._getRoundedTime() - (daysAgo || 300) * MS_PER_DAY;
-    let stmt = this.db.createStatement("DELETE FROM moz_up_interests_visits where date_added > :timeStamp");
-    stmt.params.timeStamp = timeStamp;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
-  },
-  /**
-   * Clears interests_hosts table
-   * @returns Promise for when the table will be cleaned up
-   */
-   clearInterestsHosts: function () {
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createStatement("DELETE FROM moz_up_interests_hosts");
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
   },
 
   /**
-   * returns tuples of (place_id,url,title) visisted between now and daysAgo
-   * @param   daysAgo
-   *          Number of days to be cleaned
-   * @param   interestsCallback
-   *          a callback handling url,title,visit_date,count tuple
-   * @returns Promise for when the tables will be cleaned up
+   * Get a sorted array of top interests for a namespace by score
+   *
+   * @param   namespace
+   *          Namespace string of interests in the namespace to select
+   * @param   [optional] options {see below}
+   *          checkSharable: Boolean for 0-score for unshared defaulting false
+   *          interestLimit: Number of top interests to select defaulting to 5
+   * @returns Promise with the array of interest names and scores
    */
-  reprocessRecentHistoryVisits: function (daysAgo,interestsCallback) {
-    let returnDeferred = Promise.defer();
-
-    let microSecondsAgo = (this._getRoundedTime() - ((daysAgo || 0) * MS_PER_DAY)) * 1000; // move to microseconds
-    let query = "SELECT p.url url, p.title title, v.visit_day_stamp date, v.count count " +
-    "FROM (SELECT place_id, visit_date - (visit_date % :MICROS_PER_DAY) visit_day_stamp, count(1) count " +
-    "      FROM moz_historyvisits WHERE visit_date > :microSecondsAgo GROUP BY place_id,visit_day_stamp) v " +
-    "JOIN moz_places p ON p.id = v.place_id " +
-    "WHERE p.hidden = 0 AND p.visit_count > 0 ";
-    let stmt = this.db.createStatement(query);
-    stmt.params.MICROS_PER_DAY = MS_PER_DAY * 1000;  // move to microseconds
-    stmt.params.microSecondsAgo = microSecondsAgo;
-
-    let promiseHandler = new AsyncPromiseHandler(returnDeferred, function(row) {
-        interestsCallback({visitDate: (+ row.getResultByName("date")) / 1000 ,  // this has to be in milliseconds
-                           visitCount: row.getResultByName("count"),
-                           url: row.getResultByName("url"),
-                           title: row.getResultByName("title")});
+  getScoresForNamespace: function PIS_getScoresForNamespace(namespace, options={}) {
+    let {checkSharable, interestLimit} = options;
+    return this._execute(SQL.getScoresForNamespace, {
+      columns: ["name", "score"],
+      params: {
+        checkSharable: checkSharable,
+        interestLimit: interestLimit,
+        namespace: namespace,
+        today: this._convertDateToDays(),
+      },
     });
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-    return returnDeferred.promise;
+  },
+
+  /**
+   * Set (insert or update) metadata for an interest
+   *
+   * @param   interest
+   *          Full interest name with namespace to set
+   * @param   [optional] metadata {see below}
+   *          duration: Number of days of visits to include in buckets
+   *          sharable: Boolean user preference if the interest can be shared
+   *          threshold: Number of visits in a bucket to signal recency interest
+   * @returns Promise for when the interest data is set
+   */
+  setInterest: function PIS_setInterest(interest, metadata={}) {
+    let {duration, sharable, threshold} = metadata;
+    return this._execute(SQL.setInterest, {
+      params: {
+        duration: duration,
+        interest: interest,
+        namespace: this._splitInterestName(interest)[0],
+        sharable: sharable,
+        threshold: threshold,
+      },
+    });
   },
 
   /**
@@ -606,19 +437,13 @@ let PlacesInterestsStorage = {
    * @returns Promise for when the insrtion happens
    */
   addNamespace: function (namespace,locale,lastModified) {
-    let returnDeferred = Promise.defer();
-
-    let stmt = this.db.createAsyncStatement(
-      "INSERT OR REPLACE INTO moz_up_interests_namespaces (id,namespace,locale,lastModified) " +
-      "VALUES((SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale), " +
-      ":namespace,:locale,:lastModified)");
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.params.namespace = namespace;
-    stmt.params.lastModified = lastModified || 0;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+    return this._execute(SQL.addNamespace, {
+      params: {
+        namespace: namespace,
+        locale: locale,
+        lastModified: lastModified || 0
+      },
+    });
   },
 
   /**
@@ -626,20 +451,9 @@ let PlacesInterestsStorage = {
    * @returns Promise for completion and results are tuple array
    */
   getNamespaces: function () {
-    let returnDeferred = Promise.defer();
-
-    let promiseHandler = new AsyncPromiseHandler(returnDeferred,function(row) {
-      promiseHandler.addToResultSet({id: row.getResultByName("id"),
-                                     namespace: row.getResultByName("namespace"),
-                                     locale: row.getResultByName("locale"),
-                                     lastModified: row.getResultByName("lastModified")
-                                    });
+    return this._execute(SQL.getNamespaces, {
+      columns: ["id","namespace","locale","lastModified"]
     });
-    promiseHandler.initResults([]);
-    let stmt = this.db.createAsyncStatement("SELECT id,namespace,locale,lastModified FROM moz_up_interests_namespaces");
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-    return returnDeferred.promise;
   },
 
   /**
@@ -653,21 +467,16 @@ let PlacesInterestsStorage = {
    */
    // TODO put interest behind locale
   addInterestIFR: function (interest,namespace,locale,dateUpdated,ifrData,serverId) {
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "INSERT OR REPLACE INTO moz_up_interests_ifr (interest_id,namespace_id,ifr_data,date_updated,server_id) " +
-      "VALUES((SELECT id FROM moz_up_interests WHERE interest = :interest) "  +
-      "       ,(SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale) " +
-      "       ,:ifrData,:dateUpdated,:serverId)");
-    stmt.params.interest = interest;
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.params.ifrData = JSON.stringify(ifrData);
-    stmt.params.dateUpdated = dateUpdated || Date.now();
-    stmt.params.serverId = serverId || 0;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+    return this._execute(SQL.addInterestIFR, {
+      params: {
+        interest: interest,
+        namespace: namespace,
+        locale: locale,
+        ifrData: JSON.stringify(ifrData),
+        dateUpdated: dateUpdated || Date.now(),
+        serverId: serverId || 0
+      }
+    });
   },
 
   /**
@@ -678,17 +487,13 @@ let PlacesInterestsStorage = {
    * @returns Promise for the deletion
    */
   deleteInterestIFR: function (namespace,locale,interest) {
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "DELETE FROM moz_up_interests_ifr WHERE " +
-      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale) AND " +
-      "interest_id = (SELECT id FROM moz_up_interests WHERE interest = :interest)");
-    stmt.params.interest = interest;
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+    return this._execute(SQL.deleteInterestIFR, {
+      params: {
+        interest: interest,
+        namespace: namespace,
+        locale: locale
+      }
+    });
   },
 
   /**
@@ -698,23 +503,12 @@ let PlacesInterestsStorage = {
    * @returns Promise for the deletion
    */
   clearNamespace: function (namespace,locale) {
-    let returnDeferred = Promise.defer();
-    let deferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "DELETE FROM moz_up_interests_ifr WHERE " +
-      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale)");
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    deferred.promise.then(() => {
-      let stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_namespaces WHERE namespace = :namespace AND locale = :locale");
-      stmt.params.namespace = namespace;
-      stmt.params.locale = locale;
-      stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-      stmt.finalize();
+    return this._execute(SQL.clearNamespace, {
+      params: {
+        namespace: namespace,
+        locale: locale
+      }
     });
-    return returnDeferred.promise;
   },
 
   /**
@@ -726,43 +520,11 @@ let PlacesInterestsStorage = {
     let returnDeferred = Promise.defer();
     let promises = [];
     let deferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_ifr");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-
-    deferred = Promise.defer();
-    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_namespaces");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-
-    deferred = Promise.defer();
-    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_hosts");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-
-    deferred = Promise.defer();
-    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_visits");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-
-    deferred = Promise.defer();
-    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-
-    deferred = Promise.defer();
-    stmt = this.db.createAsyncStatement("DELETE FROM moz_up_interests_meta");
-    stmt.executeAsync(new AsyncPromiseHandler(deferred));
-    stmt.finalize();
-    promises.push(deferred.promise);
-    Promise.promised(Array)(promises).then(() => returnDeferred.resolve(),
-                                           error => returnDeferred.reject(new Error(error)));
-    return returnDeferred.promise;
+    promises.push(this._execute("DELETE FROM moz_up_interests_ifr"));
+    promises.push(this._execute("DELETE FROM moz_up_interests_namespaces"));
+    promises.push(this._execute("DELETE FROM moz_interests_hosts"));
+    promises.push(this._execute("DELETE FROM moz_interests_visits"));
+    promises.push(this._execute("DELETE FROM moz_interests"));
   },
 
   /**
@@ -771,24 +533,15 @@ let PlacesInterestsStorage = {
    */
   getAllIFRs: function() {
     // elete everything
-    let returnDeferred = Promise.defer();
-    let promiseHandler = new AsyncPromiseHandler(returnDeferred,function(row) {
-      promiseHandler.addToResultSet({ namespace: row.getResultByName("namespace"),
-                                     locale: row.getResultByName("locale"),
-                                     interest: row.getResultByName("interest"),
-                                     dateUpdated: row.getResultByName("date_updated"),
-                                     ifr: JSON.parse(row.getResultByName("ifr_data")),
-                                     serverId: row.getResultByName("server_id")
-                                    });
+    return this._execute(SQL.getAllIFRs, {
+      columns: ["namespace","locale","interest","dateUpdated","ifr","serverId"]
+    }).then(results => {
+      // walk through results array and parse IFR back into object
+      results.forEach(item => {
+        item.ifr = item.ifr ? JSON.parse(item.ifr) : "";
+      });
+      return results;
     });
-    promiseHandler.initResults([]);
-    let stmt = this.db.createAsyncStatement(
-      "SELECT namespace,locale,interest,date_updated,ifr_data,server_id " +
-      "FROM moz_up_interests_ifr, moz_up_interests_namespaces, moz_up_interests " +
-      "WHERE namespace_id = moz_up_interests_namespaces.id AND interest_id = moz_up_interests.id");
-    stmt.executeAsync(promiseHandler);
-    stmt.finalize();
-    return returnDeferred.promise;
   },
 
   /**
@@ -799,20 +552,15 @@ let PlacesInterestsStorage = {
    * @returns Promise for when the update complets
    */
   updateOutdatedInterests: function (namespace,locale,lastModified) {
-    // elete everything
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "UPDATE moz_up_interests_ifr SET date_updated = :lastModified WHERE " +
-      "date_updated < :lastModified AND " +
-      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE " +
-      "                namespace = :namespace AND locale = :locale)");
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.params.lastModified = lastModified;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+    return this._execute(SQL.updateOutdatedInterests, {
+      params: {
+        namespace: namespace,
+        locale: locale,
+        lastModified: lastModified
+      }
+    });
   },
+
   /**
    * deletes all namesapce rules with outdated timestamp
    * @param   namespace
@@ -821,22 +569,165 @@ let PlacesInterestsStorage = {
    * @returns Promise for when the uber kill complets
    */
   deleteOutdatedInterests: function (namespace,locale,lastModified) {
-    // elete everything
-    let returnDeferred = Promise.defer();
-    let stmt = this.db.createAsyncStatement(
-      "DELETE FROM moz_up_interests_ifr WHERE " +
-      "date_updated < :lastModified AND " +
-      "namespace_id = (SELECT id FROM moz_up_interests_namespaces WHERE " +
-      "                namespace = :namespace AND locale = :locale)");
-    stmt.params.namespace = namespace;
-    stmt.params.locale = locale;
-    stmt.params.lastModified = lastModified;
-    stmt.executeAsync(new AsyncPromiseHandler(returnDeferred));
-    stmt.finalize();
-    return returnDeferred.promise;
+    return this._execute(SQL.deleteOutdatedInterests, {
+      params: {
+        namespace: namespace,
+        locale: locale,
+        lastModified: lastModified
+      }
+    });
+  },
+
+  //////////////////////////////////////////////////////////////////////////////
+  //// PlacesInterestsStorage Helpers
+
+  /**
+   * Convert a date to days since epoch
+   *
+   * @param   [optional] time
+   *          Reference date/time defaulting to today
+   * @returns Number of days since epoch to beginning of today UTC
+   */
+  _convertDateToDays: function PIS__convertDateToDays(time=null) {
+    // Default to today and truncate to an integer number of days
+    return Math.floor((time || Date.now()) / MS_PER_DAY);
+  },
+
+  /**
+   * Execute a SQL statement with various options
+   *
+   * @param   sql
+   *          The SQL statement to execute
+   * @param   [optional] optional {see below}
+   *          columns: Array of column strings to read for array format result
+   *          key: Additional column string to trigger object format result
+   *          listParams: Object to expand the key to a SQL list
+   *          onRow: Function callback given the columns for each row
+   *          params: Object of keys matching SQL :param to bind values
+   * @returns Promise for when the statement completes with value dependant on
+   *          the optional values passed in.
+   */
+  _execute: function PIS__execute(sql, optional={}) {
+    let {columns, key, listParams, onRow, params} = optional;
+
+    // Convert listParams into params and the desired number of identifiers
+    if (listParams != null) {
+      params = params || {};
+      Object.keys(listParams).forEach(listName => {
+        let listIdentifiers = [];
+        for (let i = 0; i < listParams[listName].length; i++) {
+          let paramName = listName + i;
+          params[paramName] = listParams[listName][i];
+          listIdentifiers.push(":" + paramName);
+        }
+
+        // Replace the list placeholders with comma-separated identifiers
+        sql = sql.replace(":" + listName, listIdentifiers, "g");
+      });
+    }
+
+    // Initialize the statement cache and the callback to clean it up
+    if (this._cachedStatements == null) {
+      this._cachedStatements = {};
+      PlacesUtils.registerShutdownFunction(() => {
+        Object.keys(this._cachedStatements).forEach(key => {
+          this._cachedStatements[key].finalize();
+        });
+      });
+    }
+
+    // Use a cached version of the statement if handy; otherwise created it
+    let statement = this._cachedStatements[sql];
+    if (statement == null) {
+      statement = this._db.createAsyncStatement(sql);
+      this._cachedStatements[sql] = statement;
+    }
+
+    // Bind params if we have any
+    if (params != null) {
+      Object.keys(params).forEach(param => {
+        statement.bindByName(param, params[param]);
+      });
+    }
+
+    // Determine the type of result as nothing, a keyed object or array of columns
+    let results;
+    if (onRow != null) {}
+    else if (key != null) {
+      results = {};
+    }
+    else if (columns != null) {
+      results = [];
+    }
+
+    // Execute the statement and update the promise accordingly
+    let deferred = Promise.defer();
+    statement.executeAsync({
+      handleCompletion: reason => {
+        deferred.resolve(results);
+      },
+
+      handleError: error => {
+        deferred.reject(new Error(error.message));
+      },
+
+      handleResult: resultSet => {
+        let row;
+        while (row = resultSet.getNextRow()) {
+          // Read out the desired columns from the row into an object
+          let result;
+          if (columns != null) {
+            // For just a single column, make the result that column
+            if (columns.length == 1) {
+              result = row.getResultByName(columns[0]);
+            }
+            // For multiple columns, put as valyes on an object
+            else {
+              result = {};
+              columns.forEach(column => {
+                result[column] = row.getResultByName(column);
+              });
+            }
+          }
+
+          // Give the packaged result to the handler
+          if (onRow != null) {
+            onRow(result);
+          }
+          // Store the result keyed on the result key
+          else if (key != null) {
+            results[row.getResultByName(key)] = result;
+          }
+          // Append the result in order
+          else if (columns != null) {
+            results.push(result);
+          }
+        }
+      }
+    });
+
+    return deferred.promise;
+  },
+
+  /**
+   * Extract the namespace from a fully-qualified interest name
+   *
+   * @param   interest
+   *          Interest string in the namespace/name format
+   * @returns [Namespace or empty string, interest name]
+   */
+  _splitInterestName: function PIS__splitInterestName(interest) {
+    let tokens = interest.split(":", 2);
+
+    // Add an empty namespace if there was no ":"
+    if (tokens.length < 2) {
+      tokens.unshift("");
+    }
+
+    return tokens;
   }
 }
 
-XPCOMUtils.defineLazyGetter(PlacesInterestsStorage, "db", function() {
+XPCOMUtils.defineLazyGetter(PlacesInterestsStorage, "_db", function() {
   return PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
 });

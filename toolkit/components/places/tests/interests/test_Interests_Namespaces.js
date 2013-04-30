@@ -36,14 +36,15 @@ add_task(function test_processNamespace() {
 
   yield iServiceObject._processNameSpace("foo","en",1000,enIFR1);
   yield PlacesInterestsStorage.addNamespace("foo","en",1000);
-  yield PlacesInterestsStorage.getMetaForInterests(["pets", "cars"]).then(results => {
+  yield PlacesInterestsStorage.getInterests(["pets", "cars"]).then(results => {
     do_check_eq(results.cars.threshold,1);
     do_check_eq(results.cars.duration,100);
     do_check_eq(results.pets.threshold,20);
     do_check_eq(results.pets.duration,200);
   });
-  
+
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
+    dumpObject(results);
     isIdentical(results,[ {
                            "namespace":"foo",
                            "locale":"en",
@@ -76,13 +77,13 @@ add_task(function test_processNamespace() {
     do_check_eq(results[0].lastModified,5000);
   });
 
-  yield PlacesInterestsStorage.getMetaForInterests(["pets","cars"]).then(results => {
+  yield PlacesInterestsStorage.getInterests(["pets","cars"]).then(results => {
     do_check_eq(results.cars.threshold,11);
     do_check_eq(results.cars.duration,110);
     do_check_eq(results.pets.threshold,20);
     do_check_eq(results.pets.duration,200);
   });
-  
+
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     isIdentical(results.sort((a,b) => a.interest.localeCompare(b.interest))
                          ,[ {

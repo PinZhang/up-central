@@ -16,8 +16,8 @@ function run_test() {
 }
 
 add_task(function test_getTopInterests_exposedProps() {
-  yield PlacesInterestsStorage.addInterest("cars");
-  yield PlacesInterestsStorage.setMetaForInterest("cars", {threshold: 1});
+  yield addInterest("cars");
+  yield PlacesInterestsStorage.setInterest("cars", {threshold: 1});
   yield PlacesInterestsStorage.addInterestVisit("cars");
 
   // Create a content sandbox and a helper to evaluate in the sandbox
@@ -26,7 +26,7 @@ add_task(function test_getTopInterests_exposedProps() {
   function doIt(statement) Cu.evalInSandbox(statement, sandbox);
 
   // Make sure promises accept callbacks
-  let then = doIt("then = interests.getTop5Interests().then");
+  let then = doIt("then = interests.getTopInterests().then");
   do_check_eq(typeof then, "function");
 
   // Wait for then to finish from within the sandbox

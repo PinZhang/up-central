@@ -34,6 +34,53 @@ Services.prefs.setBoolPref("interests.enabled", true);
 const MS_PER_DAY = 86400000;
 const MICROS_PER_DAY = 86400000000;
 
+// Wrapper around setInterest that puts in some default duration and threshold
+const DEFAULT_DURATION = 14;
+const DEFAULT_THRESHOLD = 5;
+function addInterest(interest) {
+  return PlacesInterestsStorage.setInterest(interest, {
+    duration: DEFAULT_DURATION,
+    threshold: DEFAULT_THRESHOLD,
+  });
+}
+
+function clearInterestsHosts() {
+  return PlacesInterestsStorage._execute(
+    "DELETE FROM moz_interests_hosts"
+  );
+}
+
+function getHostsForInterest(interest) {
+  return PlacesInterestsStorage._execute(
+    "SELECT h.host AS host FROM moz_hosts h, moz_interests i, moz_interests_hosts ih " +
+    "WHERE i.interest = :interest AND h.id = ih.host_id AND i.id = ih.interest_id", {
+    columns: ["host"],
+    params: {
+      interest: interest,
+    },
+  });
+}
+
+function getInterestsForHost(host) {
+  return PlacesInterestsStorage._execute(
+    "SELECT interest FROM moz_interests i, moz_interests_hosts ih, moz_hosts h " +
+    "WHERE h.host = :host AND h.id = ih.host_id AND i.id = ih.interest_id", {
+    columns: ["interest"],
+    params: {
+      host: host,
+    },
+  });
+}
+
+function promiseClearHistoryAndVisits() {
+  let promises = [];
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests"));
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests_hosts"));
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests_visits"));
+  promises.push(promiseClearHistory());
+  return Promise.promised(Array)(promises).then();
+}
+
 function promiseAddMultipleUrlInterestsVisits(aVisitInfo) {
   let visits = [];
   if (Array.isArray(aVisitInfo)) {
@@ -54,9 +101,9 @@ function promiseAddMultipleUrlInterestsVisits(aVisitInfo) {
     let interests = (Array.isArray(visit.interests)) ? visit.interests : [visit.interests];
 
     interests.forEach(function(interest) {
-      visitPromises.push(PlacesInterestsStorage.addInterest(interest));
+      visitPromises.push(addInterest(interest));
       visitPromises.push(PlacesInterestsStorage.addInterestVisit(interest, {visitTime: visitTime, visitCount: visitCount}));
-      visitPromises.push(PlacesInterestsStorage.addInterestForHost(interest,host));
+      visitPromises.push(PlacesInterestsStorage.addInterestHost(interest, host));
     });
   });
 
@@ -75,9 +122,17 @@ function promiseAddUrlInterestsVisit(url,interests,count,daysAgo) {
 function promiseAddInterestVisits(interest,count,daysAgo) {
   let visitPromises = [];
   let now = Date.now();
-  visitPromises.push(PlacesInterestsStorage.addInterest(interest));
+  visitPromises.push(addInterest(interest));
   visitPromises.push(PlacesInterestsStorage.addInterestVisit(interest, {visitTime: now - MS_PER_DAY*(daysAgo || 0), visitCount: count || 1}));
   return Promise.promised(Array)(visitPromises).then();
+}
+
+function addInterestVisitsToSite(site,interest,count) {
+  let promises = [];
+  for (let i = 0; i < count; i++) {
+    promises.push(promiseAddUrlInterestsVisit(site,interest));
+  }
+  return Promise.promised(Array)(promises).then();
 }
 
 function itemsHave(items,data) {
@@ -150,15 +205,46 @@ function isIdentical(expected, actual) {
   }
   else if (typeof expected == "object") {
     // Make sure all the keys match up
-    do_check_eq(Object.keys(expected) + "", Object.keys(actual));
+    do_check_eq(Object.keys(expected).sort() + "", Object.keys(actual).sort());
 
     // Recursively check each value individually
     Object.keys(expected).forEach(key => {
       dump("Checking key " + key);
-      isIdentical(expected[key], actual[key]);
+      isIdentical(actual[key], expected[key]);
     });
   }
   else {
     do_check_eq(expected, actual);
   }
+}
+
+function checkScores(expected, expectedZeros, interests) {
+  let withScores = interests.slice(0, expected.length);
+  isIdentical(expected, withScores);
+
+  let zeroScores = interests.slice(expected.length);
+  zeroScores.forEach(({name, score}) => {
+    LOG("Checking 0 score for " + name);
+    do_check_eq(score, 0);
+  });
+  do_check_eq(zeroScores.length, expectedZeros);
+}
+
+function unExposeAll(obj) {
+  // Filter for Objects and Arrays.
+  if (typeof obj !== "object" || !obj)
+    return;
+
+  // Recursively unexpose our children.
+  Object.keys(obj).forEach(function(key) {
+    unExposeAll(obj[key]);
+  });
+
+  if (obj instanceof Array)
+    return;
+  delete obj.__exposedProps__;
+}
+
+function scoreDecay(score, numDays, daysToZero) {
+  return score * (1 - numDays/(daysToZero+1));
 }

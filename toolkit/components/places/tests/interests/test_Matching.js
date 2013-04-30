@@ -37,6 +37,24 @@ let matchTests = [
   url:  "http://www.polygon.com/2013/3/5/4066808/thief-screenshots-leak-next-gen",
   title: "Rumored images for new Thief game leak, reportedly in the works on next-gen platforms",
   expectedInterests:  {"video-games": 1}
+},
+{
+  info: "Match Test 4 (Text): empty title",
+  url:  "http://nosuchhost.com",
+  title: null,
+  expectedInterests: {}
+},
+{
+  info: "Match Test 5 (Rules): mail.google.com exmaple",
+  url:  "https://mail.google.com/mail/u/0/?ui=2&shva=1#inbox?compose=13e0005db4a0d0d4",
+  title: "",
+  expectedInterests: {}
+},
+{
+  info: "Match Test 6 (Text): cars",
+  url:  "https://nosuchsite.com/",
+  title: "truck car automobile cars auto sedan",
+  expectedInterests: {"cars": 1}
 }
 ];
  

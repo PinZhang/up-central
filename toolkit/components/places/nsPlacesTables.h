@@ -147,37 +147,35 @@
   ")" \
 )
 
-#define CREATE_MOZ_UP_INTERESTS NS_LITERAL_CSTRING( \
-  "CREATE TABLE moz_up_interests (" \
+/**
+ * moz_interests
+ */
+
+#define CREATE_MOZ_INTERESTS NS_LITERAL_CSTRING( \
+  "CREATE TABLE moz_interests (" \
     "  id INTEGER PRIMARY KEY" \
     ", interest TEXT NOT NULL UNIQUE" \
+    ", namespace TEXT NOT NULL" \
+    ", duration INTEGER NOT NULL" \
+    ", threshold INTEGER NOT NULL" \
+    ", sharable INTEGER DEFAULT 1 NOT NULL" \
   ")" \
 )
 
-#define CREATE_MOZ_UP_INTERESTS_META NS_LITERAL_CSTRING( \
-  "CREATE TABLE moz_up_interests_meta (" \
-    "  interest_id INTEGER PRIMARY KEY" \
-    ", bucket_visit_count_threshold INTEGER" \
-    ", bucket_duration INTEGER" \
-    ", ignored_flag INTEGER NOT NULL DEFAULT 0" \
-    ", date_updated INTEGER NOT NULL DEFAULT 0" \
+#define CREATE_MOZ_INTERESTS_HOSTS NS_LITERAL_CSTRING( \
+  "CREATE TABLE moz_interests_hosts (" \
+    "  interest_id INTEGER NOT NULL" \
+    ", host_id INTEGER NOT NULL" \
+    ", PRIMARY KEY (interest_id, host_id)" \
   ")" \
 )
 
-#define CREATE_MOZ_UP_INTERESTS_VISITS NS_LITERAL_CSTRING( \
-  "CREATE TABLE moz_up_interests_visits (" \
-    "  interest_id INTEGER NOT NULL DEFAULT 0" \
-    ", date_added INTEGER NOT NULL DEFAULT 0" \
-    ", visit_count INTEGER NOT NULL DEFAULT 0" \
-    ", PRIMARY KEY (interest_id, date_added)" \
-  ")" \
-)
-
-#define CREATE_MOZ_UP_INTERESTS_HOSTS NS_LITERAL_CSTRING( \
-  "CREATE TABLE moz_up_interests_hosts (" \
-    "  interest_id INTEGER NOT NULL DEFAULT 0" \
-    ", host_id INTEGER NOT NULL DEFAULT 0" \
-    ",PRIMARY KEY (interest_id, host_id)" \
+#define CREATE_MOZ_INTERESTS_VISITS NS_LITERAL_CSTRING( \
+  "CREATE TABLE moz_interests_visits (" \
+    "  interest_id INTEGER NOT NULL" \
+    ", day INTEGER NOT NULL" \
+    ", visits INTEGER NOT NULL" \
+    ", PRIMARY KEY (interest_id, day)" \
   ")" \
 )
 

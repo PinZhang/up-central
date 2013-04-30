@@ -8,7 +8,7 @@
 
 const kNotWordPattern = /[^a-z0-9 ]+/g;
 const kMinimumMatchTokens = 3;
-const kSimilarityCutOff = 0.95;
+const kSimilarityCutOff = Math.log(0.95);
 
 function PlaceTokenizer(aUrlStopwordSet) {
   this._urlStopwordSet = aUrlStopwordSet;
@@ -16,8 +16,8 @@ function PlaceTokenizer(aUrlStopwordSet) {
 
 PlaceTokenizer.prototype = {
   tokenize: function(aUrl, aTitle) {
-    let aUrl = aUrl.toLowerCase().replace(kNotWordPattern, " ");
-    let aTitle = aTitle.toLowerCase().replace(kNotWordPattern, " ");
+    aUrl = aUrl.toLowerCase().replace(kNotWordPattern, " ");
+    aTitle = (aTitle) ? aTitle.toLowerCase().replace(kNotWordPattern, " ") : "";
 
     let tokens = [];
 
@@ -36,8 +36,8 @@ PlaceTokenizer.prototype = {
 
 function NaiveBayesClassifier(aModel) {
   this._classes = aModel.classes;
-  this._likelihoods = aModel.likelihoods;
-  this._priors = aModel.priors;
+  this._logLikelihoods = aModel.logLikelihoods;
+  this._logPriors = aModel.logPriors;
 }
 
 NaiveBayesClassifier.prototype = {
@@ -47,22 +47,21 @@ NaiveBayesClassifier.prototype = {
     }
 
     let posteriors = [];
-    this._priors.forEach(function(){
-      posteriors.push(0);
-    }, this);
+
+    for (var index=0; index < this._logPriors.length; index++) {
+      posteriors.push(this._logPriors[index]);
+    }
 
     let tokenMatchCount = 0;
-    aTokens.forEach(function(token){
-      if (this._likelihoods.hasOwnProperty(token)) {
+    for (let tokenIndex=0; tokenIndex < aTokens.length; tokenIndex++) {
+      let token = aTokens[tokenIndex];
+      if (this._logLikelihoods.hasOwnProperty(token)) {
         tokenMatchCount += 1;
-        posteriors.forEach(function(value, index) {
-          if (posteriors[index] == 0) {
-            posteriors[index] = this._priors[index];
-          }
-          posteriors[index] *= this._likelihoods[token][index];
-        }, this);
+        for (var index=0; index < posteriors.length; index++) {
+          posteriors[index] += this._logLikelihoods[token][index];
+        }
       }
-    }, this); 
+    }
 
     let classMatches = [];
     if (tokenMatchCount > kMinimumMatchTokens) {
@@ -71,14 +70,13 @@ NaiveBayesClassifier.prototype = {
       while(true) {
         let currentMax = Math.max.apply(Math, posteriors);
         let max_index;
-
         if (currentMax > maxValue) {
           // set max value, setup to get next biggest probability
           max_index = posteriors.indexOf(currentMax);
           maxValue = currentMax;
           classMatches.push(this._classes[max_index]);
           posteriors[max_index] = -Infinity;
-        } else if (currentMax/maxValue >= kSimilarityCutOff) {
+        } else if ((currentMax-maxValue) >= kSimilarityCutOff) {
           max_index = posteriors.indexOf(currentMax);
           classMatches.push(this._classes[max_index]);
           posteriors[max_index] = -Infinity;

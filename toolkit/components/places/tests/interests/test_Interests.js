@@ -11,7 +11,7 @@ Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 let iServiceObject = Cc["@mozilla.org/places/interests;1"].getService(Ci.nsISupports).wrappedJSObject;
 let iServiceApi = Cc["@mozilla.org/InterestsWebAPI;1"].createInstance(Ci.mozIInterestsWebAPI)
-let obsereverService = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+let observerService = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
 
 function run_test() {
   run_next_test();
@@ -23,7 +23,7 @@ add_task(function test_Interests() {
   yield promiseAddUrlInterestsVisit("http://www.samsung.com/", "cars");
 
   // check insertions
-  let thePromise = PlacesInterestsStorage.getInterestsForHost("cars.com");
+  let thePromise = getInterestsForHost("cars.com");
   yield thePromise.then(function(data) {
     // recheck the items
     do_check_eq(data.length , 3);
@@ -32,65 +32,12 @@ add_task(function test_Interests() {
     do_check_true(itemsHave(data,"computers"));
   });
 
-  thePromise = iServiceObject._getBucketsForInterests(["cars" , "computers"]);
+  thePromise = PlacesInterestsStorage.getBucketsForInterests(["cars" , "computers"]);
   yield thePromise.then(function(data) {
     do_check_eq(data["cars"]["immediate"], 2);
     do_check_eq(data["computers"]["immediate"], 1);
   });
 
-  // try the API
-  thePromise = iServiceApi.checkInterests(["cars" , "computers"]);
-  yield thePromise.then(function(data) {
-    do_check_eq(data["cars"]["immediate"], 2);
-    do_check_eq(data["computers"]["immediate"], 1);
-  });
-
-});
-
-add_task(function test_ResubmitHistoryVisits() {
-
-  let myDef = Promise.defer();
-  yield iServiceObject._clearRecentInterests(100).then(function(data) {
-    // test that interests are all empty
-    iServiceObject._getBucketsForInterests(["cars" , "computers","movies"]).then(function(data) {
-      myDef.resolve(data);
-    });
-  });
-
-  yield myDef.promise.then(function(data) {
-    do_check_eq(data["cars"]["immediate"], 0);
-    do_check_eq(data["computers"]["immediate"], 0);
-    do_check_eq(data["movies"]["immediate"], 0);
-  });
-
-  // the database is clean - repopulate it
-  // clean places tables and re-insert cars.com
-  let now = Date.now();
-  let microNow = now * 1000;
-  yield promiseClearHistory();
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow});
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow - 15*MICROS_PER_DAY});
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow - 15*MICROS_PER_DAY});
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow - 30*MICROS_PER_DAY});
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow - 30*MICROS_PER_DAY});
-  yield promiseAddVisits({uri: NetUtil.newURI("http://www.cars.com/"), visitDate: microNow - 30*MICROS_PER_DAY});
-
-  let promise1 = iServiceObject.resubmitRecentHistoryVisits(60);
-  let promise2 = iServiceObject.resubmitRecentHistoryVisits(60);
-  let promise3 = iServiceObject.resubmitRecentHistoryVisits(60);
-
-  // all of the promisses above should be the same promise
-  do_check_true(promise1 == promise2);
-  do_check_true(promise1 == promise3);
-
-  yield promise1;
-
-  // so we have processed the history, let's make sure we get interests back
-  yield iServiceObject._getBucketsForInterests(["cars"]).then(function(data) {
-        do_check_eq(data["cars"]["immediate"], 1);
-        do_check_eq(data["cars"]["recent"], 2);
-        do_check_eq(data["cars"]["past"], 3);
-  });
 });
 
 add_task(function test_Interests_Service() {
@@ -98,6 +45,29 @@ add_task(function test_Interests_Service() {
   Services.prefs.setBoolPref("interests.enabled", false);
   do_check_true(iServiceObject.__worker == undefined)
   Services.prefs.setBoolPref("interests.enabled", true);
-  let worker = iServiceObject._worker;
-  do_check_eq(iServiceObject.__worker, worker)
+  iServiceObject._worker;
+  do_check_true(iServiceObject.__worker != undefined)
+
+  // test auto population of metadata
+  const interests = ["arts", "banking", "blogging", "business", "career",
+  "cars", "clothes", "computers", "consumer-electronics", "cuisine", "dance",
+  "discounts", "drinks", "education", "email", "entertainment", "family",
+  "fashion", "finance", "food", "games", "government", "health", "history",
+  "hobby", "home", "image-sharing", "law", "maps", "marketing", "men",
+  "motorcycles", "movies", "music", "news", "outdoors", "pets", "photography",
+  "politics", "radio", "reading", "real-estate", "reference", "relationship",
+  "religion", "reviews", "science", "shoes", "shopping", "society", "sports",
+  "technology", "travel", "tv", "video-games", "weather", "women", "writing"];
+
+  Services.prefs.setBoolPref("interests.enabled", false);
+  promiseClearHistoryAndVisits();
+  yield PlacesInterestsStorage.getInterests(interests).then(result => {
+    do_check_eq(0, Object.keys(result).length);
+  });
+
+  Services.prefs.setBoolPref("interests.enabled", true);
+  yield PlacesInterestsStorage.getInterests(interests).then(result => {
+    do_check_eq(interests.length, Object.keys(result).length);
+  });
+
 });

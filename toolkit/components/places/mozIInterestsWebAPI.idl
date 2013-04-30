@@ -9,7 +9,6 @@
 [scriptable, uuid(492D781D-7040-491F-B23B-F9C7F690602B)]
 interface mozIInterestsWebAPI : nsISupports
 {
-  jsval checkInterests(in jsval interests);
-  jsval getTop5Interests();
-  jsval getTopInterests(in jsval numInterests);
+  jsval getInterests(in jsval interests, [optional] in jsval interestsData);
+  jsval getTopInterests([optional] in jsval topData);
 };

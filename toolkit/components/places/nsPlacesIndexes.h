@@ -52,11 +52,12 @@
   )
 
 /**
- * moz_up_interests
+ * moz_interests
  */
-#define CREATE_IDX_MOZ_UP_INTERESTS_VISITS_DATEADDED \
+
+#define CREATE_IDX_MOZ_INTERESTS_NAMESPACE \
   CREATE_PLACES_IDX( \
-    "dateindex", "moz_up_interests_visits", "date_added", "" \
+    "namespaceindex", "moz_interests", "namespace", "" \
   )
 
 /**
@@ -130,12 +131,22 @@
   )
 
 /**
- * moz_annos
+ * moz_up_interests_namespaces
  */
 
 #define CREATE_IDX_MOZ_NAMESPACE_LOCALE \
   CREATE_PLACES_IDX( \
     "namespacelocaleindex", "moz_up_interests_namespaces", "namespace, locale", "UNIQUE" \
   )
+
+/**
+ * moz_hosts
+ */
+
+#define CREATE_IDX_MOZ_HOSTS_FRECENCY \
+  CREATE_PLACES_IDX( \
+    "frecency_index", "moz_hosts", "frecency", "" \
+  )
+
 
 #endif // nsPlacesIndexes_h__

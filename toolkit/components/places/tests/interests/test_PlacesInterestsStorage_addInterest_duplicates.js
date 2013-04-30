@@ -15,16 +15,16 @@ function run_test() {
 // Test that ids for interests increase by 1
 add_task(function checkSequentialIds() {
   // Add some stuff in repeats in various orders
-  yield PlacesInterestsStorage.addInterest("cars");
-  yield PlacesInterestsStorage.addInterest("cars");
-  yield PlacesInterestsStorage.addInterest("sports");
-  yield PlacesInterestsStorage.addInterest("cars");
-  yield PlacesInterestsStorage.addInterest("sports");
-  yield PlacesInterestsStorage.addInterest("shopping");
+  yield addInterest("cars");
+  yield addInterest("cars");
+  yield addInterest("sports");
+  yield addInterest("cars");
+  yield addInterest("sports");
+  yield addInterest("shopping");
 
   // Explicitly query for the id because it's not exposed through APIs
-  let stmt = PlacesInterestsStorage.db.createStatement(
-    "SELECT id, interest FROM moz_up_interests ORDER BY id ASC");
+  let stmt = PlacesInterestsStorage._db.createStatement(
+    "SELECT id, interest FROM moz_interests ORDER BY id ASC");
 
   try {
     stmt.executeStep();

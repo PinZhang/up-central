@@ -20,11 +20,6 @@ let gClassifier = null;
 let gInterestsData = null;
 const kSplitter = /[^-\w\xco-\u017f\u0380-\u03ff\u0400-\u04ff]+/;
 
-// echo back the message as is
-function echoMessage(aMessageData) {
-  self.postMessage(aMessageData);
-}
-
 // bootstrap the worker with data and models
 function bootstrap(aMessageData) {
   //expects : {interestsData, interestsDataType, interestsClassifierModel, interestsUrlStopwords}
@@ -67,7 +62,7 @@ function ruleClassify({host, language, tld, metaData, path, title, url}) {
       interests = interests.concat(gInterestsData[host]["__ANY"]);
       hostKeys--;
     }
-    if (tldKeys && gInterestsData[tld]) {
+    if (tldKeys && gInterestsData[tld]["__ANY"]) {
       interests = interests.concat(gInterestsData[tld]["__ANY"]);
       tldKeys--;
     }
@@ -115,22 +110,28 @@ function textClassify({url, title}) {
 
 // Figure out which interests are associated to the document
 function getInterestsForDocument(aMessageData) {
-  let interests = ruleClassify(aMessageData);
-  if (interests.length == 0) {
-    // fallback to text classification
-    interests = textClassify(aMessageData);
-  }
+  let interests = [];
+  try {
+    interests = ruleClassify(aMessageData);
+    if (interests.length == 0) {
+      // fallback to text classification
+      interests = textClassify(aMessageData);
+    }
 
-  // remove duplicates
-  if(interests.length > 1) {
-    // insert interests into hash and reget the keys
-    let theHash = {};
-    interests.forEach(function(aInterest) {
-      if(!theHash[aInterest]) {
-        theHash[aInterest]=1;
-      }
-    });
-    interests = Object.keys(theHash);
+    // remove duplicates
+    if (interests.length > 1) {
+      // insert interests into hash and reget the keys
+      let theHash = {};
+      interests.forEach(function(aInterest) {
+        if (!theHash[aInterest]) {
+          theHash[aInterest]=1;
+        }
+      });
+      interests = Object.keys(theHash);
+    }
+  }
+  catch (ex) {
+    Components.utils.reportError(ex);
   }
 
   // Respond with the interests for the document
@@ -140,7 +141,8 @@ function getInterestsForDocument(aMessageData) {
     message: "InterestsForDocument",
     url: aMessageData.url,
     visitDate: aMessageData.visitDate,
-    visitCount: aMessageData.visitCount
+    visitCount: aMessageData.visitCount,
+    messageId: aMessageData.messageId
   });
 }
 

@@ -12,98 +12,72 @@ function run_test() {
   run_next_test();
 }
 
-add_task(function test_PlacesInterestsStorage_getMetaForInterests()
+add_task(function test_PlacesInterestsStorage_getInterests()
 {
-  yield PlacesInterestsStorage.addInterest("cars");
-  yield PlacesInterestsStorage.addInterest("movies");
+  yield addInterest("cars");
+  yield addInterest("movies");
 
   let results;
 
   // empty array
-  results = yield PlacesInterestsStorage.getMetaForInterests([]);
+  results = yield PlacesInterestsStorage.getInterests([]);
   isIdentical({}, results);
 
   // non-existent interest cases
-  results = yield PlacesInterestsStorage.getMetaForInterests(["eccentricity"])
+  results = yield PlacesInterestsStorage.getInterests(["eccentricity"])
   isIdentical({}, results);
 
-  results = yield PlacesInterestsStorage.getMetaForInterests(["eccentricity", "quixotic"])
+  results = yield PlacesInterestsStorage.getInterests(["eccentricity", "quixotic"])
   isIdentical({}, results);
 
-  // INSERT works. create meta table entry, with no data given
-  // for custom rules, this is what we will use to signal the need to download them
-  let todayTime = PlacesInterestsStorage._getRoundedTime();
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({}, results);
-  yield PlacesInterestsStorage.setMetaForInterest("cars");
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: null, duration: null, ignored: false, dateUpdated: todayTime}}, results);
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: DEFAULT_THRESHOLD, duration: DEFAULT_DURATION, sharable: 1}}, results);
 
   // updates work as expected
-  yield PlacesInterestsStorage.setMetaForInterest("cars", {threshold: 5, duration: 15, ignored: true, dateUpdated: 0});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: 5, duration: 15, ignored: true, dateUpdated: 0}}, results);
+  yield PlacesInterestsStorage.setInterest("cars", {threshold: 5, duration: 15, sharable: false});
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: 5, duration: 15, sharable: 0}}, results);
 
   // null for option does not change anything
-  yield PlacesInterestsStorage.setMetaForInterest("cars", {threshold: null, duration: null, ignored: null, dateUpdated: null});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: 5, duration: 15, ignored: true, dateUpdated: 0}}, results);
+  yield PlacesInterestsStorage.setInterest("cars", {threshold: null, duration: null, ignored: null});
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: 5, duration: 15, sharable: 0}}, results);
 
   // not specifying dateUpdate sets today's update time
-  yield PlacesInterestsStorage.setMetaForInterest("cars", {duration: 7});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: 5, duration: 7, ignored: true, dateUpdated: todayTime}}, results);
+  yield PlacesInterestsStorage.setInterest("cars", {duration: 7});
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: 5, duration: 7, sharable: 0}}, results);
 
-  // not giving any options set today's update time
-  yield PlacesInterestsStorage.setMetaForInterest("cars", {threshold: 0, duration: 0, ignored: false, dateUpdated: 0});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: 0}}, results);
-  yield PlacesInterestsStorage.setMetaForInterest("cars");
-  results = yield PlacesInterestsStorage.getMetaForInterests(["cars"])
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: todayTime}}, results);
+  // can set threshold and durations to 0
+  yield PlacesInterestsStorage.setInterest("cars", {threshold: 0, duration: 0, sharable: true});
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: 0, duration: 0, sharable: 1}}, results);
+  yield PlacesInterestsStorage.setInterest("cars");
+  results = yield PlacesInterestsStorage.getInterests(["cars"])
+  isIdentical({"cars": {threshold: 0, duration: 0, sharable: 1}}, results);
 
 
   // INSERT cases
 
   // calling with an interest that doesn't exist
-  yield PlacesInterestsStorage.setMetaForInterest("idontexist", {});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["idontexist"]);
+  let didFail = false;
+  yield PlacesInterestsStorage.setInterest("idontexist", {}).then(null, () => didFail = true);
+  do_check_true(didFail);
+  results = yield PlacesInterestsStorage.getInterests(["idontexist"]);
   isIdentical([], results);
 
   // inserting with parameters works
-  let todayTime = PlacesInterestsStorage._getRoundedTime();
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies"]);
-  isIdentical([], results);
-  yield PlacesInterestsStorage.setMetaForInterest("movies", {threshold:14, duration: 5});
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies"])
-  isIdentical({"movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
+  results = yield PlacesInterestsStorage.getInterests(["movies"]);
+  isIdentical({"movies": {threshold: DEFAULT_THRESHOLD, duration: DEFAULT_DURATION, sharable: 1}}, results);
+  yield PlacesInterestsStorage.setInterest("movies", {threshold:14, duration: 5});
+  results = yield PlacesInterestsStorage.getInterests(["movies"])
+  isIdentical({"movies": {threshold: 14, duration: 5, sharable: 1}}, results);
 
   // > 1 interests
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies", "cars"]);
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: todayTime}, "movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
+  results = yield PlacesInterestsStorage.getInterests(["movies", "cars"]);
+  isIdentical({"cars": {threshold: 0, duration: 0, sharable: 1}, "movies": {threshold: 14, duration: 5, sharable: 1}}, results);
 
   // multiple interests, one doesn't exist
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies", "cars", "idontexist"]);
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: todayTime}, "movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
-
-  // updateIgnoreFlag tests
-  yield PlacesInterestsStorage.updateIgnoreFlagForInterest("cars", true);
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies", "cars"]);
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: true, dateUpdated: todayTime}, "movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
-
-  yield PlacesInterestsStorage.updateIgnoreFlagForInterest("cars", false);
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies", "cars"]);
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: todayTime}, "movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
-  // no flip?
-  yield PlacesInterestsStorage.updateIgnoreFlagForInterest("cars", false);
-  results = yield PlacesInterestsStorage.getMetaForInterests(["movies", "cars"]);
-  isIdentical({"cars": {threshold: 0, duration: 0, ignored: false, dateUpdated: todayTime}, "movies": {threshold: 14, duration: 5, ignored: false, dateUpdated: todayTime}}, results);
-
-  // ignore non-existent interest
-  yield PlacesInterestsStorage.updateIgnoreFlagForInterest("idontexist", true);
-  results = yield PlacesInterestsStorage.getMetaForInterests(["idontexist"]);
-  isIdentical([], results);
-  yield PlacesInterestsStorage.updateIgnoreFlagForInterest("idontexist", false);
-  results = yield PlacesInterestsStorage.getMetaForInterests(["idontexist"]);
-  isIdentical([], results);
+  results = yield PlacesInterestsStorage.getInterests(["movies", "cars", "idontexist"]);
+  isIdentical({"cars": {threshold: 0, duration: 0, sharable: 1}, "movies": {threshold: 14, duration: 5, sharable: 1}}, results);
 });

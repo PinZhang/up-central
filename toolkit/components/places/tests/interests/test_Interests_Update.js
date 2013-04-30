@@ -82,14 +82,16 @@ add_task(function test_NamespaceUpdate() {
     do_check_eq(error,"Empty URI for Interest Update Server");
   });
 
+  dump("HERE \n");
   Services.prefs.setCharPref("interests.updateServerURI","http://localhost:4444")
 
   yield iServiceObject._updateNamespaces();
+  dump("HERE \n");
 
   // make sure If-Modified-Since arrived as expected
   do_check_eq(httpUpdateObject["en/foo"].ifModifiedSince,undefined);
 
-  yield PlacesInterestsStorage.getMetaForInterests(["pets", "cars"]).then(results => {
+  yield PlacesInterestsStorage.getInterests(["pets", "cars"]).then(results => {
     do_check_eq(results.cars.threshold,1);
     do_check_eq(results.cars.duration,100);
     do_check_eq(results.pets.threshold,20);
@@ -138,7 +140,7 @@ add_task(function test_NamespaceUpdate() {
   });
 
   yield PlacesInterestsStorage.
-    getMetaForInterests(["pets","cars"]).then(results => {
+    getInterests(["pets","cars"]).then(results => {
     do_check_eq(results.cars.threshold,11);
     do_check_eq(results.cars.duration,110);
     do_check_eq(results.pets.threshold,20);

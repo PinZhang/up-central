@@ -13,15 +13,15 @@ function run_test() {
 }
 
 add_task(function test_NamespaceLocaleInsert() {
-  
-  yield PlacesInterestsStorage.addNamespace("foo","en",0); 
-  yield PlacesInterestsStorage.addNamespace("foo","en",1000); 
-  yield PlacesInterestsStorage.addNamespace("foo","en",2000); 
 
-  yield PlacesInterestsStorage.addNamespace("abs","de",1000); 
-  yield PlacesInterestsStorage.addNamespace("abs","de",3000); 
+  yield PlacesInterestsStorage.addNamespace("foo","en",0);
+  yield PlacesInterestsStorage.addNamespace("foo","en",1000);
+  yield PlacesInterestsStorage.addNamespace("foo","en",2000);
+
+  yield PlacesInterestsStorage.addNamespace("abs","de",1000);
+  yield PlacesInterestsStorage.addNamespace("abs","de",3000);
   // Explicitly query for the id because it's not exposed through APIs
-  let stmt = PlacesInterestsStorage.db.createStatement(
+  let stmt = PlacesInterestsStorage._db.createStatement(
     "SELECT id, namespace, locale, lastModified FROM moz_up_interests_namespaces ORDER BY id ASC");
 
   try {
@@ -39,7 +39,7 @@ add_task(function test_NamespaceLocaleInsert() {
   }
   finally {
     stmt.finalize();
-  } 
+  }
 
 });
 
@@ -51,7 +51,7 @@ add_task(function test_addInterestIFR() {
     do_check_eq(results.length,0);
   });
 
-  // add namespace 
+  // add namespace
   yield PlacesInterestsStorage.addNamespace("foo","en",1000);
   yield PlacesInterestsStorage.getNamespaces().then(results => {
     do_check_eq(results.length,1);
@@ -61,7 +61,7 @@ add_task(function test_addInterestIFR() {
     do_check_eq(results[0].lastModified,1000);
   });
 
-  yield PlacesInterestsStorage.addInterest("cars");
+  yield addInterest("cars");
   yield PlacesInterestsStorage.addInterestIFR("cars","foo","en",2000,{a:1},61);
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     do_check_eq(results.length,1);
@@ -120,12 +120,11 @@ add_task(function test_addInterestIFR() {
   yield PlacesInterestsStorage.clearNamespaces();
 
   //all tables must be empty now
-  ["moz_up_interests_ifr", 
-    "moz_up_interests_namespaces", 
-    "moz_up_interests_hosts", 
-    "moz_up_interests_visits", 
-    "moz_up_interests" ,
-    "moz_up_interests_meta" ].forEach(table => do_check_eq(get_rowscount_in_table(table),0));
+  ["moz_up_interests_ifr",
+    "moz_up_interests_namespaces",
+    "moz_interests_hosts",
+    "moz_interests_visits",
+    "moz_interests" ].forEach(table => do_check_eq(get_rowscount_in_table(table),0));
 
 });
 

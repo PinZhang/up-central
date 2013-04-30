@@ -1220,7 +1220,7 @@ pref("social.toast-notifications.enabled", true);
 pref("dom.identity.enabled", false);
 
 pref("interests.enabled", false);
-pref("interests.userDomainWhitelist", 'mozilla.org, mozilla.com, about:config, about:profile');
+pref("interests.userDomainWhitelist", "");
 pref("interests.navigator.prompted", false);
 pref("interests.updateServerURI","");
 

@@ -106,16 +106,16 @@ add_task(function test_default_model_match() {
 let riggedMatchTests = [
   {
     interestsClassifierModel: {
-      priors: [0.5, 0.5],
-      likelihoods: {
+      logPriors: [0.5, 0.5].map(Math.log),
+      logLikelihoods: {
 
-        foo: [0.8, 0.2],
-        qux: [0.8, 0.2],
-        quux: [0.8, 0.2],
+        foo: [0.8, 0.2].map(Math.log),
+        qux: [0.8, 0.2].map(Math.log),
+        quux: [0.8, 0.2].map(Math.log),
 
-        bar: [0.2, 0.8],
-        baz: [0.2, 0.8],
-        xyzzy: [0.2, 0.8],
+        bar: [0.2, 0.8].map(Math.log),
+        baz: [0.2, 0.8].map(Math.log),
+        xyzzy: [0.2, 0.8].map(Math.log),
       },
       classes: {
         0: "foo",

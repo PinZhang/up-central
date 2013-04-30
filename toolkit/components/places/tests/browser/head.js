@@ -9,6 +9,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesInterestsStorage",
+                                  "resource://gre/modules/PlacesInterestsStorage.jsm");
 
 /**
  * Allows waiting for an observer notification once.
@@ -340,12 +342,50 @@ function DBConn(aForceNewConnection) {
   return gDBConn.connectionReady ? gDBConn : null;
 }
 
+/**
+ * Opens a new browser window and executes callback for new window
+ *
+ * @param aOptions
+ *        OpenBrowserWindow options
+ * param aCallback
+ *        Callback function that will get the new window
+ */
 function whenNewWindowLoaded(aOptions, aCallback) {
   let win = OpenBrowserWindow(aOptions);
   win.addEventListener("load", function onLoad() {
     win.removeEventListener("load", onLoad, false);
     aCallback(win);
   }, false);
+}
+
+/**
+ * opens a new browser window and loads URL
+ * returns a promise resolved on DOMLoaded event
+ *
+ * @param aOptions
+ *        OpenBrowserWindow options for new window
+ * param aURL
+ *        url to load into the window
+ * param [optional] aCallback
+ *        Callback function that will recieve the new window
+ *        when the window is opened but before URL is loaded
+ */
+function loadURLIntoSeparateWindow(aOptions,aURL,aWindowLoadedCallback) {
+  let deferred = Promise.defer();
+  whenNewWindowLoaded(aOptions, function(aWin) {
+    executeSoon(function() {
+      aWin.gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", function onDOMLoad() {
+        aWin.gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", onDOMLoad, true);
+        deferred.resolve(aWin);
+      });
+      if (aWindowLoadedCallback) {
+        aWindowLoadedCallback(aWin);
+      }
+      aWin.content.location.href = aURL;
+      //aWin.gBrowser.selectedBrowser.loadURI(aURL);
+    });
+  });
+  return deferred.promise;
 }
 
 /**
@@ -365,4 +405,44 @@ function promiseIsURIVisited(aURI, aExpectedValue) {
   });
 
   return deferred.promise;
+}
+
+/**
+ * adds an interest to the database
+ *
+ * @param aInterest The interest.
+ * @return {Promise}
+ * @resolves When the added successfully.
+ * @rejects JavaScript exception.
+ */
+function promiseAddInterest(aInterest) {
+  return PlacesInterestsStorage.setInterest(aInterest, {
+    duration: 14,
+    threshold: 5,
+  });
+}
+
+/**
+ * clears all interests related tables
+ *
+ * @return {Promise}
+ */
+function promiseClearInterests() {
+  let promises = [];
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests"));
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests_hosts"));
+  promises.push(PlacesInterestsStorage._execute("DELETE FROM moz_interests_visits"));
+  return Promise.promised(Array)(promises).then();
+}
+
+/**
+ * clears all interests and history
+ *
+ * @return {Promise}
+ */
+function promiseClearHistoryAndInterests() {
+  let promises = [];
+  promises.push(promiseClearHistory());
+  promises.push(promiseClearInterests());
+  return Promise.promised(Array)(promises).then();
 }
