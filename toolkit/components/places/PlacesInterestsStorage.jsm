@@ -409,12 +409,12 @@ let PlacesInterestsStorage = {
    * @returns Promise for when the interest data is set
    */
   setInterest: function PIS_setInterest(interest, metadata={}) {
-    let {duration, sharable, threshold} = metadata;
+    let {duration, sharable, threshold, namespace} = metadata;
     return this._execute(SQL.setInterest, {
       params: {
         duration: duration,
         interest: interest,
-        namespace: this._splitInterestName(interest)[0],
+        namespace: namespace || this._splitInterestName(interest)[0],
         sharable: sharable,
         threshold: threshold,
       },

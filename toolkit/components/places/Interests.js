@@ -365,10 +365,12 @@ Interests.prototype = {
     }
 
     let {matches, threshold, duration} = rule_ifr;
+    let interestNamespace = serverNamespace.split("/")[1];
 
     PlacesInterestsStorage.setInterest(interest, {
       threshold: threshold,
       duration: duration,
+      namespace: interestNamespace,
     }).then(() => {
       return PlacesInterestsStorage.setInterestIFR(
                serverNamespace,

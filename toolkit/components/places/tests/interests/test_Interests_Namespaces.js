@@ -83,6 +83,21 @@ add_task(function test_processNamespace() {
     do_check_eq(results.pets.duration,200);
   });
 
+  // check retrieval by the namespace
+  yield iServiceObject.getInterestsByNamespace("foo").then(results => {
+    do_check_eq(results.length,2);
+    let cars = results[0];
+    let pets = results[1];
+
+    do_check_eq(cars.name,"cars");
+    do_check_eq(cars.meta.duration,110);
+    do_check_eq(cars.meta.threshold,11);
+
+    do_check_eq(pets.name,"pets");
+    do_check_eq(pets.meta.duration,200);
+    do_check_eq(pets.meta.threshold,20);
+  });
+
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results.sort((a,b) => a.interest.localeCompare(b.interest))
                          ,[ {
