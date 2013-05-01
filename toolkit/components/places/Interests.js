@@ -360,10 +360,10 @@ Interests.prototype = {
                                                        lastModified) {
     if (!rule_ifr) {
       // this rule must be deleted
-      return PlacesInterestsStorage.deleteInterestIFR(serverNamespace,interest);
+      return PlacesInterestsStorage.deleteInterestIFR(serverNamespace, interest);
     }
 
-    let {matches,threshold,duration} = rule_ifr;
+    let {matches, threshold, duration} = rule_ifr;
 
     PlacesInterestsStorage.setInterest(interest, {
       threshold: threshold,
@@ -385,7 +385,7 @@ Interests.prototype = {
     let promises = [];
 
     // we have to update timestamp on the server namespace itself
-    promises.push(PlacesInterestsStorage.setServerNamespace(serverNamespace,lastModified));
+    promises.push(PlacesInterestsStorage.setServerNamespace(serverNamespace, lastModified));
 
     // now handle each rule
     Object.keys(ifrData).forEach(key => {
@@ -451,7 +451,7 @@ Interests.prototype = {
     return this._updateServerNamespaces();
   },
 
-  _handleServerNamespaceResponse: function(serverNamespace,xhr) {
+  _handleServerNamespaceResponse: function(serverNamespace, xhr) {
     let lastModifiedHeader = xhr.getResponseHeader("Last-Modified");
     let lastModified = this._RFC2822ToMilliSeconds(lastModifiedHeader);
     switch (xhr.status) {
@@ -484,7 +484,7 @@ Interests.prototype = {
     }
   },
 
-  _makeHttpRequest: function(serverNamespace,deferred) {
+  _makeHttpRequest: function(serverNamespace, deferred) {
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
     xhr.onload = function() {
       try {
@@ -518,8 +518,8 @@ Interests.prototype = {
           let deferred = Promise.defer();
           promises.push(deferred.promise);
           // set up HttpResponse
-          let {serverNamespace,lastModified} = nsObject;
-          let xhr = this._makeHttpRequest(serverNamespace,deferred);
+          let {serverNamespace, lastModified} = nsObject;
+          let xhr = this._makeHttpRequest(serverNamespace, deferred);
           // setup headers and urls
           xhr.open("GET", this._getNamespaceGetURL(serverNamespace));
           xhr.responseType = "json";

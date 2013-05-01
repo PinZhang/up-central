@@ -142,7 +142,7 @@ const SQL = {
                    "WHERE interest = :interest)))",
   setServerNamespace:
       "INSERT OR REPLACE INTO moz_interests_namespaces " +
-      "(id,serverNamespace,lastModified) " +
+      "(id, serverNamespace, lastModified) " +
       "VALUES((SELECT id " +
               "FROM moz_interests_namespaces " + 
               "WHERE serverNamespace = :serverNamespace), " +
@@ -150,12 +150,12 @@ const SQL = {
              ":lastModified)",
 
   getServerNamespaces:
-      "SELECT id,serverNamespace,lastModified " +
+      "SELECT id, serverNamespace, lastModified " +
       "FROM moz_interests_namespaces",
 
   setInterestIFR:
       "INSERT OR REPLACE INTO moz_interests_ifr " +
-      "(interest_id,serverNamespace_id,ifr_data,date_updated) " +
+      "(interest_id, serverNamespace_id, ifr_data, date_updated) " +
       "VALUES((SELECT id " +
                "FROM moz_interests " +
                "WHERE interest = :interest), "  +
@@ -429,7 +429,7 @@ let PlacesInterestsStorage = {
    * @param   lastmodifed timestamp received from the server in milliseconds
    * @returns Promise for when the insrtion happens
    */
-  setServerNamespace: function (serverNamespace,lastModified) {
+  setServerNamespace: function(serverNamespace, lastModified) {
     return this._execute(SQL.setServerNamespace, {
       params: {
         serverNamespace: serverNamespace,
@@ -443,7 +443,7 @@ let PlacesInterestsStorage = {
    *
    * @returns Promise for completion, resolves to an array
    */
-  getServerNamespaces: function () {
+  getServerNamespaces: function() {
     return this._execute(SQL.getServerNamespaces, {
       columns: ["id","serverNamespace","lastModified"]
     });
@@ -460,7 +460,7 @@ let PlacesInterestsStorage = {
    * @param   dateUpdated timestamp defaulted to now (in miliseconds)
    * @returns Promise for when the insrtion happens
    */
-  setInterestIFR: function (serverNamespace,interest,dateUpdated,ifrData) {
+  setInterestIFR: function(serverNamespace, interest, dateUpdated, ifrData) {
     return this._execute(SQL.setInterestIFR, {
       params: {
         interest: interest,
@@ -472,14 +472,14 @@ let PlacesInterestsStorage = {
   },
 
   /**
-   * deletes  (serverNamespace,interest)
+   * deletes  (serverNamespace, interest)
    *
    * @param   serverNamespace
    *          locale/namespace server tag to organize locale specific IFRs
    * @param   interest
    * @returns Promise for the deletion
    */
-  deleteInterestIFR: function (serverNamespace,interest) {
+  deleteInterestIFR: function(serverNamespace, interest) {
     return this._execute(SQL.deleteInterestIFR, {
       params: {
         interest: interest,
@@ -495,7 +495,7 @@ let PlacesInterestsStorage = {
    *          locale/namespace server tag to organize locale specific IFRs
    * @returns Promise for the deletion
    */
-  clearServerNamespace: function (serverNamespace) {
+  clearServerNamespace: function(serverNamespace) {
     return this._execute(SQL.clearServerNamespace, {
       params: {
         serverNamespace: serverNamespace
@@ -544,7 +544,7 @@ let PlacesInterestsStorage = {
    * @param   lastmodifed timestamp received from the server in milliseconds
    * @returns Promise for when the update complets
    */
-  updateOutdatedInterestIFRs: function (serverNamespace,lastModified) {
+  updateOutdatedInterestIFRs: function(serverNamespace, lastModified) {
     return this._execute(SQL.updateOutdatedInterestIFRs, {
       params: {
         serverNamespace: serverNamespace,
@@ -561,7 +561,7 @@ let PlacesInterestsStorage = {
    * @param   lastmodifed timestamp received from the server in milliseconds
    * @returns Promise for when outdated IFRs are removed
    */
-  deleteOutdatedInterestIFRs: function (serverNamespace,lastModified) {
+  deleteOutdatedInterestIFRs: function(serverNamespace, lastModified) {
     return this._execute(SQL.deleteOutdatedInterestIFRs, {
       params: {
         serverNamespace: serverNamespace,
