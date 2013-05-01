@@ -162,7 +162,7 @@ const SQL = {
              "(SELECT id " +
                "FROM moz_interests_namespaces " + 
                "WHERE serverNamespace = :serverNamespace), " +
-             ":ifrData," +
+             ":ifr," +
              ":dateUpdated)",
 
   deleteInterestIFR:
@@ -455,17 +455,17 @@ let PlacesInterestsStorage = {
    * @param   serverNamespace
    *          locale/namespace server tag to organize locale specific IFRs
    * @param   interest
-   * @param   ifrData
+   * @param   ifr
    *          acutal rule IFR (interest first rule)
    * @param   dateUpdated timestamp defaulted to now (in miliseconds)
    * @returns Promise for when the insrtion happens
    */
-  setInterestIFR: function(serverNamespace, interest, dateUpdated, ifrData) {
+  setInterestIFR: function(serverNamespace, interest, dateUpdated, ifr) {
     return this._execute(SQL.setInterestIFR, {
       params: {
         interest: interest,
         serverNamespace: serverNamespace,
-        ifrData: JSON.stringify(ifrData),
+        ifr: JSON.stringify(ifr),
         dateUpdated: dateUpdated || Date.now()
       }
     });
