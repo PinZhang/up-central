@@ -142,40 +142,36 @@ const SQL = {
                    "WHERE interest = :interest)))",
   addNamespace:
       "INSERT OR REPLACE INTO moz_interests_namespaces " +
-      "(id,namespace,locale,lastModified) " +
+      "(id,serverNamespace,lastModified) " +
       "VALUES((SELECT id " +
               "FROM moz_interests_namespaces " + 
-              "WHERE namespace = :namespace AND " +
-                    "locale = :locale), " +
-             ":namespace, " +
-             ":locale, " +
+              "WHERE serverNamespace = :serverNamespace), " +
+             ":serverNamespace, " +
              ":lastModified)",
 
   getNamespaces:
-      "SELECT id,namespace,locale,lastModified " +
+      "SELECT id,serverNamespace,lastModified " +
       "FROM moz_interests_namespaces",
 
   addInterestIFR:
       "INSERT OR REPLACE INTO moz_interests_ifr " +
-      "(interest_id,namespace_id,ifr_data,date_updated,server_id) " +
+      "(interest_id,serverNamespace_id,ifr_data,date_updated,server_id) " +
       "VALUES((SELECT id " +
                "FROM moz_interests " +
                "WHERE interest = :interest), "  +
              "(SELECT id " +
                "FROM moz_interests_namespaces " + 
-               "WHERE namespace = :namespace AND " +
-               "locale = :locale)," +
+               "WHERE serverNamespace = :serverNamespace), " +
              ":ifrData," +
              ":dateUpdated," +
              ":serverId)",
 
   deleteInterestIFR:
       "DELETE FROM moz_interests_ifr " +
-      "WHERE namespace_id = " + 
+      "WHERE serverNamespace_id = " +
               "(SELECT id " +
                "FROM moz_interests_namespaces " + 
-               "WHERE namespace = :namespace AND " +
-                     "locale = :locale) AND " +
+                 "WHERE serverNamespace = :serverNamespace) AND " +
             "interest_id = " +
               "(SELECT id " +
                "FROM moz_interests " +
@@ -183,39 +179,37 @@ const SQL = {
 
   clearNamespace:
       "DELETE FROM moz_interests_ifr " +
-      "WHERE namespace_id = " +
+      "WHERE serverNamespace_id = " +
               "(SELECT id " +
                "FROM moz_interests_namespaces " +
-               "WHERE namespace = :namespace AND " +
-                     "locale = :locale)",
+               "WHERE serverNamespace = :serverNamespace)",
 
   getAllIFRs:
-      "SELECT moz_interests_namespaces.namespace, " +
-             "locale, " + 
+      "SELECT serverNamespace, " +
              "interest, " +
              "date_updated as dateUpdated, " +
              "ifr_data as ifr, " +
              "server_id as serverId " +
       "FROM moz_interests_ifr, moz_interests_namespaces, moz_interests " +
-      "WHERE namespace_id = moz_interests_namespaces.id AND " +
+      "WHERE serverNamespace_id = moz_interests_namespaces.id AND " +
             "interest_id = moz_interests.id" ,
 
   updateOutdatedInterests:
       "UPDATE moz_interests_ifr " + 
       "SET date_updated = :lastModified " +
       "WHERE date_updated < :lastModified AND " +
-            "namespace_id = (SELECT id " +
-                            "FROM moz_interests_namespaces " +
-                            "WHERE namespace = :namespace AND " +
-                            "locale = :locale)",
+            "serverNamespace_id = " +
+              "(SELECT id " +
+               "FROM moz_interests_namespaces " +
+               "WHERE serverNamespace = :serverNamespace)",
 
   deleteOutdatedInterests:
       "DELETE FROM moz_interests_ifr " +
       "WHERE date_updated < :lastModified AND " +
-            "namespace_id = (SELECT id " +
-                            "FROM moz_interests_namespaces " +
-                            "WHERE namespace = :namespace AND " +
-                                  "locale = :locale)"
+            "serverNamespace_id = " +
+              "(SELECT id " +
+               "FROM moz_interests_namespaces " +
+               "WHERE serverNamespace = :serverNamespace)"
 };
 
 let PlacesInterestsStorage = {
@@ -430,48 +424,49 @@ let PlacesInterestsStorage = {
   },
 
   /**
-   * insert a namespace,locale
-   * @param   namespace
-   * @param   locale
+   * inserts a serverNamespace
+   *
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @param   lastmodifed timestamp received from the server in milliseconds
    * @returns Promise for when the insrtion happens
    */
-  addNamespace: function (namespace,locale,lastModified) {
+  addNamespace: function (serverNamespace,lastModified) {
     return this._execute(SQL.addNamespace, {
       params: {
-        namespace: namespace,
-        locale: locale,
+        serverNamespace: serverNamespace,
         lastModified: lastModified || 0
       },
     });
   },
 
   /**
-   * selects id,namespace,locale,lastModifed from the table
-   * @returns Promise for completion and results are tuple array
+   * returns server-namespaces data for all namespaces
+   *
+   * @returns Promise for completion, resolves to an array
    */
   getNamespaces: function () {
     return this._execute(SQL.getNamespaces, {
-      columns: ["id","namespace","locale","lastModified"]
+      columns: ["id","serverNamespace","lastModified"]
     });
   },
 
   /**
-   * insert ifr for an interest+namespace+locale
+   * inserts ifr for an serverNamespace:interest
+   *
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @param   interest
-   * @param   namespace
-   * @param   locale
    * @param   ifrData
+   *          acutal rule IFR (interest first rule)
    * @param   dateUpdated timestamp defaulted to now (in miliseconds)
    * @returns Promise for when the insrtion happens
    */
-   // TODO put interest behind locale
-  addInterestIFR: function (interest,namespace,locale,dateUpdated,ifrData,serverId) {
+  addInterestIFR: function (serverNamespace,interest,dateUpdated,ifrData,serverId) {
     return this._execute(SQL.addInterestIFR, {
       params: {
         interest: interest,
-        namespace: namespace,
-        locale: locale,
+        serverNamespace: serverNamespace,
         ifrData: JSON.stringify(ifrData),
         dateUpdated: dateUpdated || Date.now(),
         serverId: serverId || 0
@@ -480,33 +475,33 @@ let PlacesInterestsStorage = {
   },
 
   /**
-   * deletes  (namespace,locale,interest)
-   * @param   namespace
-   * @param   locale
+   * deletes  (serverNamespace,interest)
+   *
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @param   interest
    * @returns Promise for the deletion
    */
-  deleteInterestIFR: function (namespace,locale,interest) {
+  deleteInterestIFR: function (serverNamespace,interest) {
     return this._execute(SQL.deleteInterestIFR, {
       params: {
         interest: interest,
-        namespace: namespace,
-        locale: locale
+        serverNamespace: serverNamespace
       }
     });
   },
 
   /**
-   * clears namespace and and ifr tables for (namespace,locale) pair
-   * @param   namespace
-   * @param   locale
+   * clears namespace and and ifr tables for a server namespace
+   *
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @returns Promise for the deletion
    */
-  clearNamespace: function (namespace,locale) {
+  clearNamespace: function (serverNamespace) {
     return this._execute(SQL.clearNamespace, {
       params: {
-        namespace: namespace,
-        locale: locale
+        serverNamespace: serverNamespace
       }
     });
   },
@@ -529,12 +524,13 @@ let PlacesInterestsStorage = {
 
   /**
    * returns full IFR enchilada for all namesapces
-   * @returns Promise for the big select
+   *
+   * @returns Promise for completion
    */
   getAllIFRs: function() {
     // elete everything
     return this._execute(SQL.getAllIFRs, {
-      columns: ["namespace","locale","interest","dateUpdated","ifr","serverId"]
+      columns: ["serverNamespace","interest","dateUpdated","ifr","serverId"]
     }).then(results => {
       // walk through results array and parse IFR back into object
       results.forEach(item => {
@@ -546,33 +542,32 @@ let PlacesInterestsStorage = {
 
   /**
    * updates all namesapce rules timestamp
-   * @param   namespace
-   * @param   locale
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @param   lastmodifed timestamp received from the server in milliseconds
    * @returns Promise for when the update complets
    */
-  updateOutdatedInterests: function (namespace,locale,lastModified) {
+  updateOutdatedInterests: function (serverNamespace,lastModified) {
     return this._execute(SQL.updateOutdatedInterests, {
       params: {
-        namespace: namespace,
-        locale: locale,
+        serverNamespace: serverNamespace,
         lastModified: lastModified
       }
     });
   },
 
   /**
-   * deletes all namesapce rules with outdated timestamp
-   * @param   namespace
-   * @param   locale
+   * deletes all server namespace rules with outdated timestamp
+   *
+   * @param   serverNamespace
+   *          locale/namespace server tag to organize locale specific IFRs
    * @param   lastmodifed timestamp received from the server in milliseconds
-   * @returns Promise for when the uber kill complets
+   * @returns Promise for when outdated IFRs are removed
    */
-  deleteOutdatedInterests: function (namespace,locale,lastModified) {
+  deleteOutdatedInterests: function (serverNamespace,lastModified) {
     return this._execute(SQL.deleteOutdatedInterests, {
       params: {
-        namespace: namespace,
-        locale: locale,
+        serverNamespace: serverNamespace,
         lastModified: lastModified
       }
     });

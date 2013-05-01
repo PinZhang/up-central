@@ -20,18 +20,17 @@ function run_test() {
 
 let httpUpdateObject = {};
 
-function setUpServerResponseForNamespace(namespace,locale) {
-  let fullQualifier = locale + "/" + namespace;
-  createJSONPathHandler("/api/v0/rules/" + fullQualifier,
+function setUpServerResponseForNamespace(serverNamespace) {
+  createJSONPathHandler("/api/v0/rules/" + serverNamespace,
     function(request,response) {
       try {
-        httpUpdateObject[fullQualifier].ifModifiedSince = request.hasHeader("If-Modified-Since") ?
+        httpUpdateObject[serverNamespace].ifModifiedSince = request.hasHeader("If-Modified-Since") ?
                                                           request.getHeader("If-Modified-Since") :
                                                           undefined;
-        let status = httpUpdateObject[fullQualifier].status || 200;
-        let ifr = httpUpdateObject[fullQualifier].ifr || {};
-        let lastModified = httpUpdateObject[fullQualifier].lastModified || 0;
-        let message = httpUpdateObject[fullQualifier].message || "OK";
+        let status = httpUpdateObject[serverNamespace].status || 200;
+        let ifr = httpUpdateObject[serverNamespace].ifr || {};
+        let lastModified = httpUpdateObject[serverNamespace].lastModified || 0;
+        let message = httpUpdateObject[serverNamespace].message || "OK";
         response.setStatusLine("1.1" , status , message);
         // no cache on the client
         response.setHeader("Cache-Control", "no-cache, must-revalidate");
@@ -47,13 +46,13 @@ function setUpServerResponseForNamespace(namespace,locale) {
 }
 
 let enIFR1 = {
-  "en/foo/cars": {
+  "en/foo:cars": {
     "matches" : [{"domains": ["ford.com"]}],
     "threshold" : 1,
     "duration" : 100,
     "serverId": 1
   },
-  "en/foo/pets": {
+  "en/foo:pets": {
     "matches" : [{"domains": ["pets.com"]}],
     "threshold" : 20,
     "duration" : 200,
@@ -66,8 +65,8 @@ add_task(function test_NamespaceUpdate() {
   let lastModifiedMiliSeconds = iServiceObject._RFC2822ToMilliSeconds("Tue, 15 Nov 1994 12:45:26 GMT");
   do_check_eq(lastModifiedMiliSeconds,784903526000);
   do_check_eq(iServiceObject._miliSecondsToRFC2822(784903526000),"Tue, 15 Nov 1994 12:45:26 GMT");
-  yield PlacesInterestsStorage.addNamespace("foo","en",0);
-  setUpServerResponseForNamespace("foo","en");
+  yield PlacesInterestsStorage.addNamespace("en/foo",0);
+  setUpServerResponseForNamespace("en/foo");
 
   httpUpdateObject["en/foo"] = {};
   httpUpdateObject["en/foo"].status = 200;
@@ -82,11 +81,9 @@ add_task(function test_NamespaceUpdate() {
     do_check_eq(error,"Empty URI for Interest Update Server");
   });
 
-  dump("HERE \n");
   Services.prefs.setCharPref("interests.updateServerURI","http://localhost:4444")
 
   yield iServiceObject._updateNamespaces();
-  dump("HERE \n");
 
   // make sure If-Modified-Since arrived as expected
   do_check_eq(httpUpdateObject["en/foo"].ifModifiedSince,undefined);
@@ -100,16 +97,14 @@ add_task(function test_NamespaceUpdate() {
 
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     isIdentical(results,[ {
-                           "namespace":"foo",
-                           "locale":"en",
+                           "serverNamespace":"en/foo",
                            "interest":"cars",
                            "dateUpdated":784903526000,
                            "ifr":[{"domains":["ford.com"]}],
                            "serverId":1
                           },
                           {
-                            "namespace":"foo",
-                            "locale":"en",
+                            "serverNamespace":"en/foo",
                             "interest":"pets",
                             "dateUpdated":784903526000,
                             "ifr":[{"domains":["pets.com"]}],
@@ -117,10 +112,10 @@ add_task(function test_NamespaceUpdate() {
                            }]);
   });
 
-  delete enIFR1["en/foo/pets"];
-  enIFR1["en/foo/cars"].matches = {"a":1};
-  enIFR1["en/foo/cars"].threshold = 11;
-  enIFR1["en/foo/cars"].duration = 110;
+  delete enIFR1["en/foo:pets"];
+  enIFR1["en/foo:cars"].matches = {"a":1};
+  enIFR1["en/foo:cars"].threshold = 11;
+  enIFR1["en/foo:cars"].duration = 110;
 
   lastModifiedMiliSeconds = iServiceObject._RFC2822ToMilliSeconds("Wed, 16 Nov 1994 12:45:27 GMT");
   do_check_eq(lastModifiedMiliSeconds,784989927000);
@@ -134,8 +129,7 @@ add_task(function test_NamespaceUpdate() {
 
   // make sure the namespace update date is 5000
   yield PlacesInterestsStorage.getNamespaces().then(results => {
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].lastModified,784989927000);
   });
 
@@ -151,16 +145,14 @@ add_task(function test_NamespaceUpdate() {
     getAllIFRs().then(results => {
     isIdentical(results.sort((a,b) => a.interest.localeCompare(b.interest))
                          ,[ {
-                           "namespace":"foo",
-                           "locale":"en",
+                           "serverNamespace":"en/foo",
                            "interest":"cars",
                            "dateUpdated":784989927000,
                            "ifr":{"a":1},
                            "serverId":1
                           },
                           {
-                            "namespace":"foo",
-                            "locale":"en",
+                            "serverNamespace":"en/foo",
                             "interest":"pets",
                             "dateUpdated":784989927000,
                             "ifr":[{"domains":["pets.com"]}],
@@ -183,8 +175,7 @@ add_task(function test_NamespaceUpdate() {
   // no mentioned in IFR, whose timestamp is less 7000
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     isIdentical(results ,[ {
-                           "namespace":"foo",
-                           "locale":"en",
+                           "serverNamespace":"en/foo",
                            "interest":"cars",
                            "dateUpdated":784993528000,
                            "ifr":{"a":1},
@@ -198,8 +189,7 @@ add_task(function test_NamespaceUpdate() {
     yield iServiceObject._updateNamespaces();
     yield PlacesInterestsStorage.getAllIFRs().then(results => {
       isIdentical(results ,[ {
-                             "namespace":"foo",
-                             "locale":"en",
+                             "serverNamespace":"en/foo",
                              "interest":"cars",
                              "dateUpdated":784993528000,
                              "ifr":{"a":1},

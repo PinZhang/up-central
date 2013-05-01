@@ -131,15 +131,6 @@
   )
 
 /**
- * moz_up_interests_namespaces
- */
-
-#define CREATE_IDX_MOZ_NAMESPACE_LOCALE \
-  CREATE_PLACES_IDX( \
-    "namespacelocaleindex", "moz_interests_namespaces", "namespace, locale", "UNIQUE" \
-  )
-
-/**
  * moz_hosts
  */
 

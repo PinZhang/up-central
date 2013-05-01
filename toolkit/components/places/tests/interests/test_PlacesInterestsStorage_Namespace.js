@@ -14,27 +14,25 @@ function run_test() {
 
 add_task(function test_NamespaceLocaleInsert() {
 
-  yield PlacesInterestsStorage.addNamespace("foo","en",0);
-  yield PlacesInterestsStorage.addNamespace("foo","en",1000);
-  yield PlacesInterestsStorage.addNamespace("foo","en",2000);
+  yield PlacesInterestsStorage.addNamespace("en/foo",0);
+  yield PlacesInterestsStorage.addNamespace("en/foo",1000);
+  yield PlacesInterestsStorage.addNamespace("en/foo",2000);
 
-  yield PlacesInterestsStorage.addNamespace("abs","de",1000);
-  yield PlacesInterestsStorage.addNamespace("abs","de",3000);
+  yield PlacesInterestsStorage.addNamespace("de/abs",1000);
+  yield PlacesInterestsStorage.addNamespace("de/abs",3000);
   // Explicitly query for the id because it's not exposed through APIs
   let stmt = PlacesInterestsStorage._db.createStatement(
-    "SELECT id, namespace, locale, lastModified FROM moz_interests_namespaces ORDER BY id ASC");
+    "SELECT id, serverNamespace, lastModified FROM moz_interests_namespaces ORDER BY id ASC");
 
   try {
     stmt.executeStep();
     do_check_eq(stmt.row.id, 1);
-    do_check_eq(stmt.row.namespace, "foo");
-    do_check_eq(stmt.row.locale, "en");
+    do_check_eq(stmt.row.serverNamespace, "en/foo");
     do_check_eq(stmt.row.lastModified, 2000);
 
     stmt.executeStep();
     do_check_eq(stmt.row.id, 2);
-    do_check_eq(stmt.row.namespace, "abs");
-    do_check_eq(stmt.row.locale, "de");
+    do_check_eq(stmt.row.serverNamespace, "de/abs");
     do_check_eq(stmt.row.lastModified, 3000);
   }
   finally {
@@ -52,70 +50,64 @@ add_task(function test_addInterestIFR() {
   });
 
   // add namespace
-  yield PlacesInterestsStorage.addNamespace("foo","en",1000);
+  yield PlacesInterestsStorage.addNamespace("en/foo",1000);
   yield PlacesInterestsStorage.getNamespaces().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].id,1);
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].lastModified,1000);
   });
 
   yield addInterest("cars");
-  yield PlacesInterestsStorage.addInterestIFR("cars","foo","en",2000,{a:1},61);
+  yield PlacesInterestsStorage.addInterestIFR("en/foo","cars",2000,{a:1},61);
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].interest,"cars");
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,2000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({a:1}));
     do_check_eq(results[0].serverId,61);
   });
 
-  yield PlacesInterestsStorage.addInterestIFR("cars","foo","en",3000,{b:2},62);
+  yield PlacesInterestsStorage.addInterestIFR("en/foo","cars",3000,{b:2},62);
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].interest,"cars");
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
     do_check_eq(results[0].serverId,62);
   });
 
-  yield PlacesInterestsStorage.addNamespace("foo","de",1000);
-  yield PlacesInterestsStorage.addInterestIFR("cars","foo","de",null,{a:1},63);
+  yield PlacesInterestsStorage.addNamespace("de/foo",1000);
+  yield PlacesInterestsStorage.addInterestIFR("de/foo","cars",null,{a:1},63);
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     do_check_eq(results.length,2);
     do_check_eq(results[0].interest,"cars");
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
     do_check_eq(results[0].serverId,62);
 
     do_check_eq(results[1].interest,"cars");
-    do_check_eq(results[1].namespace,"foo");
-    do_check_eq(results[1].locale,"de");
+    do_check_eq(results[1].serverNamespace,"de/foo");
     do_check_true(results[1].dateUpdated - Date.now() > -5000);
     do_check_eq(JSON.stringify(results[1].ifr),JSON.stringify({a:1}));
     do_check_eq(results[1].serverId,63);
   });
 
-  yield PlacesInterestsStorage.deleteInterestIFR("foo","de","cars");
+  yield PlacesInterestsStorage.deleteInterestIFR("de/foo","cars");
   yield PlacesInterestsStorage.getAllIFRs().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].interest,"cars");
-    do_check_eq(results[0].namespace,"foo");
-    do_check_eq(results[0].locale,"en");
+    do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
     do_check_eq(results[0].serverId,62);
   });
-  yield PlacesInterestsStorage.addInterestIFR("cars","foo","de",null,{a:1},63);
+  yield PlacesInterestsStorage.addInterestIFR("de/foo","cars",null,{a:1},63);
   yield PlacesInterestsStorage.getAllIFRs().then(results => do_check_eq(results.length,2));
-  yield PlacesInterestsStorage.clearNamespace("foo","de");
+  yield PlacesInterestsStorage.clearNamespace("de/foo");
   yield PlacesInterestsStorage.getAllIFRs().then(results => do_check_eq(results.length,1));
   yield PlacesInterestsStorage.clearNamespaces();
 

@@ -835,8 +835,6 @@ Database::InitSchema(bool* aDatabaseMigrated)
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_MOZ_INTERESTS_NAMESPACES);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_NAMESPACE_LOCALE);
-    NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_MOZ_INTERESTS_IFR);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1942,8 +1940,6 @@ Database::MigrateV23Up()
     rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_HOSTS_FRECENCY);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_MOZ_INTERESTS_NAMESPACES);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_NAMESPACE_LOCALE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_MOZ_INTERESTS_IFR);
     NS_ENSURE_SUCCESS(rv, rv);

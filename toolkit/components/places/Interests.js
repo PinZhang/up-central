@@ -351,8 +351,10 @@ Interests.prototype = {
     }));
   },
 
-  _processInterestMetaIFR: function I___processInterestIFR(namespace,
-                                                           locale,
+  //////////////////////////////////////////////////////////////////////////////
+  //// Processing Update Server Namespace Data & IFR Rules
+
+  _processInterestMetaIFR: function I___processInterestIFR(serverNamespace,
                                                            interest,
                                                            rule_ifr,
                                                            lastModified) {
@@ -361,7 +363,7 @@ Interests.prototype = {
     let addIFRDone = false;
     if (!rule_ifr) {
       // this rule must be deleted
-      return PlacesInterestsStorage.deleteInterestIFR(namespace,locale,interest);
+      return PlacesInterestsStorage.deleteInterestIFR(serverNamespace,interest);
     }
     function testForCompletion() {
       if (setInterestDone && addIFRDone) deferred.resolve();
@@ -377,9 +379,8 @@ Interests.prototype = {
     });
 
     PlacesInterestsStorage.addInterestIFR(
+      serverNamespace,
       interest,
-      namespace,
-      locale,
       lastModified,
       matches,
       serverId).then(() => {
@@ -390,33 +391,30 @@ Interests.prototype = {
     return deferred.promise;
   },
 
-  _processNameSpace: function I__processNameSpace(namespace,
-                                                  locale,
+  _processServerNamespace: function I__processServerNamespace(serverNamespace,
                                                   lastModified,
                                                   ifrData,
                                                   deleteOutdatedRules) {
     let deferred = Promise.defer();
     let promises = [];
 
-    // we have to update timestamp on the namespace itself
-    promises.push(PlacesInterestsStorage.addNamespace(namespace,locale,lastModified));
+    // we have to update timestamp on the server namespace itself
+    promises.push(PlacesInterestsStorage.addNamespace(serverNamespace,lastModified));
 
     // now handle each rule
     Object.keys(ifrData).forEach(key => {
-      // parse out rule name to extract locale,namespace,interest
-      let bits = key.split("/");
-      let ruleLocale = bits.shift();
+      // parse out rule name to extract server namespace & interest
+      let bits = key.split(":");
       let ruleNamespace = bits.shift();
-      let interest = bits.join("");
-      // make sure rule locale and namespace match the argumets
-      if (ruleNamespace != namespace || ruleLocale != locale) {
+      let interest = bits.shift();
+      // make sure rule serverNamespace match the argumets
+      if (ruleNamespace != serverNamespace) {
         // TODO: Handle Error
         Cu.reportError(aEvent.message);
         return;
       }
       promises.push(
-        this._processInterestMetaIFR(namespace,
-                                     locale,
+        this._processInterestMetaIFR(serverNamespace,
                                      interest,
                                      ifrData[key],
                                      lastModified));
@@ -428,30 +426,26 @@ Interests.prototype = {
       if (deleteOutdatedRules) {
         // delete interests timestemaped before lastModified
         PlacesInterestsStorage.
-          deleteOutdatedInterests(namespace,
-                                  locale,
-                                  lastModified).then(() => deferred.resolve());
+          deleteOutdatedInterests(serverNamespace, lastModified).then(() => deferred.resolve());
       }
       else {
-        // no deletion - bring all namespace rules to the given timestamp
+        // no deletion - bring all server namespace rules to the given timestamp
         PlacesInterestsStorage.
-          updateOutdatedInterests(namespace,
-                                  locale,
-                                  lastModified).then(() => deferred.resolve());
+          updateOutdatedInterests(serverNamespace, lastModified).then(() => deferred.resolve());
       }
     });
     return deferred.promise;
   },
 
   //////////////////////////////////////////////////////////////////////////////
-  //// server communication
+  //// Update Server Communication Helpers
 
-  _getNamespaceGetURL: function(namespace,locale) {
+  _getNamespaceGetURL: function(serverNamespace) {
     if (this.__updateServerBaseURI == null) {
       Cu.reportError("Empty URI for Interest Update Server");
       throw("Empty URI for Interest Update Server");
     }
-    return this.__updateServerBaseURI + "/api/v0/rules/" + locale + "/" + namespace;
+    return this.__updateServerBaseURI + "/api/v0/rules/" + serverNamespace;
   },
   
   _resetUpdateServerURI: function() {
@@ -471,29 +465,27 @@ Interests.prototype = {
     this.updateNamespaces();
   },
 
-  _handleServerNamespaceResponse: function(namespace,locale,xhr) {
+  _handleServerNamespaceResponse: function(serverNamespace,xhr) {
     let lastModifiedHeader = xhr.getResponseHeader("Last-Modified");
     let lastModified = this._RFC2822ToMilliSeconds(lastModifiedHeader);
     switch (xhr.status) {
       case 200:
-        // full namespace update, delete outdated rules
-        return this._processNameSpace(namespace,
-                                      locale,
+        // full server namespace update, delete outdated rules
+        return this._processServerNamespace(serverNamespace,
                                       lastModified,
                                       xhr.response,
                                       true);
         break;
 
       case 206:
-        // partual namespace update, only update specified rules
-        return this._processNameSpace(namespace,
-                                      locale,
+        // partual server namespace update, only update specified rules
+        return this._processServerNamespace(serverNamespace,
                                       lastModified,
                                       xhr.response);
         break;
 
       case 410:  // gone
-        return PlacesInterestsStorage.clearNamespace(namespace,locale);
+        return PlacesInterestsStorage.clearNamespace(serverNamespace);
         break;
 
       case 304:  // not modified
@@ -506,12 +498,11 @@ Interests.prototype = {
     }
   },
 
-  _makeHttpRequest: function(namespace,locale,deferred) {
+  _makeHttpRequest: function(serverNamespace,deferred) {
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
     xhr.onload = function() {
       try {
-        this._handleServerNamespaceResponse(namespace,
-                                            locale,
+        this._handleServerNamespaceResponse(serverNamespace,
                                             xhr).then(() => deferred.resolve());
       } catch(e) {
         //TODO:handle error - what should we do here?
@@ -541,10 +532,10 @@ Interests.prototype = {
           let deferred = Promise.defer();
           promises.push(deferred.promise);
           // set up HttpResponse
-          let {namespace,locale,lastModified} = nsObject;
-          let xhr = this._makeHttpRequest(namespace,locale,deferred);
+          let {serverNamespace,lastModified} = nsObject;
+          let xhr = this._makeHttpRequest(serverNamespace,deferred);
           // setup headers and urls
-          xhr.open("GET", this._getNamespaceGetURL(namespace,locale));
+          xhr.open("GET", this._getNamespaceGetURL(serverNamespace));
           xhr.responseType = "json";
           if (lastModified) {
             xhr.setRequestHeader("If-Modified-Since",
