@@ -74,7 +74,7 @@ add_task(function test_NamespaceUpdate() {
   httpUpdateObject["en/foo"].lastModified = lastModifiedMiliSeconds;
 
   // make sure that we throw because Server URI has not been set yet
-  yield iServiceObject._updateNamespaces().then(results => {
+  yield iServiceObject._update().then(results => {
     do_check_true(results == null);
   },
   error => {
@@ -83,7 +83,7 @@ add_task(function test_NamespaceUpdate() {
 
   Services.prefs.setCharPref("interests.updateServerURI","http://localhost:4444")
 
-  yield iServiceObject._updateNamespaces();
+  yield iServiceObject._update();
 
   // make sure If-Modified-Since arrived as expected
   do_check_eq(httpUpdateObject["en/foo"].ifModifiedSince,undefined);
@@ -125,7 +125,7 @@ add_task(function test_NamespaceUpdate() {
   httpUpdateObject["en/foo"].ifr = JSON.stringify(enIFR1);
   httpUpdateObject["en/foo"].lastModified = lastModifiedMiliSeconds;
 
-  yield iServiceObject._updateNamespaces();
+  yield iServiceObject._update();
 
   // make sure the namespace update date is 5000
   yield PlacesInterestsStorage.getServerNamespaces().then(results => {
@@ -169,7 +169,7 @@ add_task(function test_NamespaceUpdate() {
   httpUpdateObject["en/foo"].ifr = JSON.stringify(enIFR1);
   httpUpdateObject["en/foo"].lastModified = lastModifiedMiliSeconds;
 
-  yield iServiceObject._updateNamespaces();
+  yield iServiceObject._update();
 
   // try out the deletion of IFRs, this last flag will force deletion of rules
   // no mentioned in IFR, whose timestamp is less 7000
@@ -186,7 +186,7 @@ add_task(function test_NamespaceUpdate() {
   // test 304,400, and 404 codes - they all should be ignored
   [304,400,404].forEach(function(code) {
     httpUpdateObject["en/foo"].status = code;
-    yield iServiceObject._updateNamespaces();
+    yield iServiceObject._update();
     yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
       isIdentical(results ,[ {
                              "serverNamespace":"en/foo",
@@ -200,7 +200,7 @@ add_task(function test_NamespaceUpdate() {
 
   // test namespace deletion
   httpUpdateObject["en/foo"].status = 410;
-  yield iServiceObject._updateNamespaces();
+  yield iServiceObject._update();
   // now results should just empty
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results ,[]);

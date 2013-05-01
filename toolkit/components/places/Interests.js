@@ -462,7 +462,7 @@ Interests.prototype = {
   },
 
   _update: function() {
-    this.updateNamespaces();
+    return this._updateServerNamespaces();
   },
 
   _handleServerNamespaceResponse: function(serverNamespace,xhr) {
@@ -522,7 +522,7 @@ Interests.prototype = {
     return xhr;
   },
 
-  _updateNamespaces: function() {
+  _updateServerNamespaces: function() {
     let returnDeferred = Promise.defer();
     let promises = [];
     PlacesInterestsStorage.getServerNamespaces().then(results => {
