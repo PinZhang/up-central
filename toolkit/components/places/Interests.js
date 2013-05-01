@@ -360,7 +360,8 @@ Interests.prototype = {
                                                        lastModified) {
     if (!rule_ifr) {
       // this rule must be deleted
-      return PlacesInterestsStorage.deleteInterestIFR(serverNamespace, interest);
+      return PlacesInterestsStorage.
+        deleteInterestIFR(serverNamespace, interest);
     }
 
     let {matches, threshold, duration} = rule_ifr;
@@ -377,7 +378,8 @@ Interests.prototype = {
     });
   },
 
-  _processServerNamespace: function I__processServerNamespace(serverNamespace,
+  _processServerNamespace: function I__processServerNamespace(
+                                                  serverNamespace,
                                                   lastModified,
                                                   ifrData,
                                                   deleteOutdatedRules) {
@@ -385,7 +387,8 @@ Interests.prototype = {
     let promises = [];
 
     // we have to update timestamp on the server namespace itself
-    promises.push(PlacesInterestsStorage.setServerNamespace(serverNamespace, lastModified));
+    promises.push(PlacesInterestsStorage.
+      setServerNamespace(serverNamespace, lastModified));
 
     // now handle each rule
     Object.keys(ifrData).forEach(key => {
@@ -412,12 +415,14 @@ Interests.prototype = {
       if (deleteOutdatedRules) {
         // delete interests timestemaped before lastModified
         PlacesInterestsStorage.
-          deleteOutdatedInterestIFRs(serverNamespace, lastModified).then(() => deferred.resolve());
+          deleteOutdatedInterestIFRs(serverNamespace, lastModified).
+            then(() => deferred.resolve());
       }
       else {
         // no deletion - bring all server namespace rules to the given timestamp
         PlacesInterestsStorage.
-          updateOutdatedInterestIFRs(serverNamespace, lastModified).then(() => deferred.resolve());
+          updateOutdatedInterestIFRs(serverNamespace, lastModified).
+            then(() => deferred.resolve());
       }
     });
     return deferred.promise;
@@ -435,7 +440,8 @@ Interests.prototype = {
   },
   
   _resetUpdateServerURI: function() {
-    this.__updateServerBaseURI = Services.prefs.getCharPref("interests.updateServerURI");
+    this.__updateServerBaseURI =
+      Services.prefs.getCharPref("interests.updateServerURI");
   },
 
   _RFC2822ToMilliSeconds: function(rfc2822Date) {
@@ -485,11 +491,12 @@ Interests.prototype = {
   },
 
   _makeHttpRequest: function(serverNamespace, deferred) {
-    let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
+    let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
+                createInstance(Ci.nsIXMLHttpRequest);
     xhr.onload = function() {
       try {
-        this._handleServerNamespaceResponse(serverNamespace,
-                                            xhr).then(() => deferred.resolve());
+        this._handleServerNamespaceResponse(serverNamespace, xhr).
+          then(() => deferred.resolve());
       } catch(e) {
         //TODO:handle error - what should we do here?
         // for the time being - we still resolve the promise
