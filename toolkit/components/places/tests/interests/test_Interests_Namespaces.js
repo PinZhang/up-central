@@ -32,10 +32,18 @@ let enIFR1 = {
   }
 };
 
+let deIFR2 = {
+  "de/foo:robin-bobin": {
+    "matches" : [{"domains": ["ford.com"]}],
+    "threshold" : 1,
+    "duration" : 100,
+    "serverId": 1
+  }
+};
+
 add_task(function test_processNamespace() {
 
   yield iServiceObject._processServerNamespace("en/foo",1000,enIFR1);
-  yield PlacesInterestsStorage.setServerNamespace("en/foo",1000);
   yield PlacesInterestsStorage.getInterests(["pets", "cars"]).then(results => {
     do_check_eq(results.cars.threshold,1);
     do_check_eq(results.cars.duration,100);
@@ -44,7 +52,6 @@ add_task(function test_processNamespace() {
   });
 
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
-    dumpObject(results);
     isIdentical(results,[ {
                            "serverNamespace":"en/foo",
                            "interest":"cars",
@@ -112,4 +119,28 @@ add_task(function test_processNamespace() {
                            "serverId":1
                           }]);
   });
+
+  yield iServiceObject._processServerNamespace("de/foo",7000,deIFR2);
+  yield PlacesInterestsStorage.getInterests(["cars","robin-bobin"]).then(results => {
+    do_check_eq(results["robin-bobin"].threshold,1);
+    do_check_eq(results["robin-bobin"].duration,100);
+  });
+
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
+    isIdentical(results,[ {
+                           "serverNamespace":"en/foo",
+                           "interest":"cars",
+                           "dateUpdated":7000,
+                           "ifr":{"a":1},
+                           "serverId":1
+                          },
+                          {
+                            "serverNamespace":"de/foo",
+                            "interest":"robin-bobin",
+                            "dateUpdated":7000,
+                            "ifr":[{"domains":["ford.com"]}],
+                            "serverId":1
+                           }]);
+  });
+
 });

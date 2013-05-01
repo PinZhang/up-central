@@ -358,37 +358,24 @@ Interests.prototype = {
                                                        interest,
                                                        rule_ifr,
                                                        lastModified) {
-    let deferred = Promise.defer();
-    let setInterestDone = false;
-    let addIFRDone = false;
     if (!rule_ifr) {
       // this rule must be deleted
       return PlacesInterestsStorage.deleteInterestIFR(serverNamespace,interest);
     }
-    function testForCompletion() {
-      if (setInterestDone && addIFRDone) deferred.resolve();
-    };
 
     let {matches,threshold,duration,serverId} = rule_ifr;
+
     PlacesInterestsStorage.setInterest(interest, {
       threshold: threshold,
       duration: duration,
     }).then(() => {
-          setInterestDone = true;
-          testForCompletion();
+      return PlacesInterestsStorage.setInterestIFR(
+               serverNamespace,
+               interest,
+               lastModified,
+               matches,
+               serverId);
     });
-
-    PlacesInterestsStorage.setInterestIFR(
-      serverNamespace,
-      interest,
-      lastModified,
-      matches,
-      serverId).then(() => {
-        addIFRDone = true;
-        testForCompletion();
-    });
-
-    return deferred.promise;
   },
 
   _processServerNamespace: function I__processServerNamespace(serverNamespace,
