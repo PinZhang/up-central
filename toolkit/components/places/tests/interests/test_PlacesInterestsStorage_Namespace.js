@@ -59,41 +59,37 @@ add_task(function test_setInterestIFR() {
   });
 
   yield addInterest("cars");
-  yield PlacesInterestsStorage.setInterestIFR("en/foo","cars",2000,{a:1},61);
+  yield PlacesInterestsStorage.setInterestIFR("en/foo","cars",2000,{a:1});
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].interest,"cars");
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,2000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({a:1}));
-    do_check_eq(results[0].serverId,61);
   });
 
-  yield PlacesInterestsStorage.setInterestIFR("en/foo","cars",3000,{b:2},62);
+  yield PlacesInterestsStorage.setInterestIFR("en/foo","cars",3000,{b:2});
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     do_check_eq(results.length,1);
     do_check_eq(results[0].interest,"cars");
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
-    do_check_eq(results[0].serverId,62);
   });
 
   yield PlacesInterestsStorage.setServerNamespace("de/foo",1000);
-  yield PlacesInterestsStorage.setInterestIFR("de/foo","cars",null,{a:1},63);
+  yield PlacesInterestsStorage.setInterestIFR("de/foo","cars",null,{a:1});
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     do_check_eq(results.length,2);
     do_check_eq(results[0].interest,"cars");
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
-    do_check_eq(results[0].serverId,62);
 
     do_check_eq(results[1].interest,"cars");
     do_check_eq(results[1].serverNamespace,"de/foo");
     do_check_true(results[1].dateUpdated - Date.now() > -5000);
     do_check_eq(JSON.stringify(results[1].ifr),JSON.stringify({a:1}));
-    do_check_eq(results[1].serverId,63);
   });
 
   yield PlacesInterestsStorage.deleteInterestIFR("de/foo","cars");
@@ -103,9 +99,8 @@ add_task(function test_setInterestIFR() {
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].dateUpdated,3000);
     do_check_eq(JSON.stringify(results[0].ifr),JSON.stringify({b:2}));
-    do_check_eq(results[0].serverId,62);
   });
-  yield PlacesInterestsStorage.setInterestIFR("de/foo","cars",null,{a:1},63);
+  yield PlacesInterestsStorage.setInterestIFR("de/foo","cars",null,{a:1});
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => do_check_eq(results.length,2));
   yield PlacesInterestsStorage.clearServerNamespace("de/foo");
   yield PlacesInterestsStorage.getAllInterestIFRs().then(results => do_check_eq(results.length,1));

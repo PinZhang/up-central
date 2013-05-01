@@ -363,7 +363,7 @@ Interests.prototype = {
       return PlacesInterestsStorage.deleteInterestIFR(serverNamespace,interest);
     }
 
-    let {matches,threshold,duration,serverId} = rule_ifr;
+    let {matches,threshold,duration} = rule_ifr;
 
     PlacesInterestsStorage.setInterest(interest, {
       threshold: threshold,
@@ -373,8 +373,7 @@ Interests.prototype = {
                serverNamespace,
                interest,
                lastModified,
-               matches,
-               serverId);
+               matches);
     });
   },
 

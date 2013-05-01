@@ -193,7 +193,6 @@
     ", serverNamespace_id INTEGER NOT NULL DEFAULT 0" \
     ", ifr_data TEXT NOT NULL" \
     ", date_updated INTEGER NOT NULL DEFAULT 0 " \
-    ", server_id INTEGER DEFAULT 0 " \
     ", PRIMARY KEY (interest_id, serverNamespace_id)" \
   ")" \
 )

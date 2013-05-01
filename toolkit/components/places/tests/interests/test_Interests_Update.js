@@ -50,13 +50,11 @@ let enIFR1 = {
     "matches" : [{"domains": ["ford.com"]}],
     "threshold" : 1,
     "duration" : 100,
-    "serverId": 1
   },
   "en/foo:pets": {
     "matches" : [{"domains": ["pets.com"]}],
     "threshold" : 20,
     "duration" : 200,
-    "serverId": 2
   }
 };
 
@@ -101,14 +99,12 @@ add_task(function test_NamespaceUpdate() {
                            "interest":"cars",
                            "dateUpdated":784903526000,
                            "ifr":[{"domains":["ford.com"]}],
-                           "serverId":1
                           },
                           {
                             "serverNamespace":"en/foo",
                             "interest":"pets",
                             "dateUpdated":784903526000,
                             "ifr":[{"domains":["pets.com"]}],
-                            "serverId":2
                            }]);
   });
 
@@ -149,14 +145,12 @@ add_task(function test_NamespaceUpdate() {
                            "interest":"cars",
                            "dateUpdated":784989927000,
                            "ifr":{"a":1},
-                           "serverId":1
                           },
                           {
                             "serverNamespace":"en/foo",
                             "interest":"pets",
                             "dateUpdated":784989927000,
                             "ifr":[{"domains":["pets.com"]}],
-                            "serverId":2
                            }],true);
   });
 
@@ -179,7 +173,6 @@ add_task(function test_NamespaceUpdate() {
                            "interest":"cars",
                            "dateUpdated":784993528000,
                            "ifr":{"a":1},
-                           "serverId":1
                           }]);
   });
 
@@ -193,7 +186,6 @@ add_task(function test_NamespaceUpdate() {
                              "interest":"cars",
                              "dateUpdated":784993528000,
                              "ifr":{"a":1},
-                             "serverId":1
                             }]);
     });
   });

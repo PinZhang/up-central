@@ -155,7 +155,7 @@ const SQL = {
 
   setInterestIFR:
       "INSERT OR REPLACE INTO moz_interests_ifr " +
-      "(interest_id,serverNamespace_id,ifr_data,date_updated,server_id) " +
+      "(interest_id,serverNamespace_id,ifr_data,date_updated) " +
       "VALUES((SELECT id " +
                "FROM moz_interests " +
                "WHERE interest = :interest), "  +
@@ -163,8 +163,7 @@ const SQL = {
                "FROM moz_interests_namespaces " + 
                "WHERE serverNamespace = :serverNamespace), " +
              ":ifrData," +
-             ":dateUpdated," +
-             ":serverId)",
+             ":dateUpdated)",
 
   deleteInterestIFR:
       "DELETE FROM moz_interests_ifr " +
@@ -188,8 +187,7 @@ const SQL = {
       "SELECT serverNamespace, " +
              "interest, " +
              "date_updated as dateUpdated, " +
-             "ifr_data as ifr, " +
-             "server_id as serverId " +
+             "ifr_data as ifr " +
       "FROM moz_interests_ifr, moz_interests_namespaces, moz_interests " +
       "WHERE serverNamespace_id = moz_interests_namespaces.id AND " +
             "interest_id = moz_interests.id" ,
@@ -462,14 +460,13 @@ let PlacesInterestsStorage = {
    * @param   dateUpdated timestamp defaulted to now (in miliseconds)
    * @returns Promise for when the insrtion happens
    */
-  setInterestIFR: function (serverNamespace,interest,dateUpdated,ifrData,serverId) {
+  setInterestIFR: function (serverNamespace,interest,dateUpdated,ifrData) {
     return this._execute(SQL.setInterestIFR, {
       params: {
         interest: interest,
         serverNamespace: serverNamespace,
         ifrData: JSON.stringify(ifrData),
-        dateUpdated: dateUpdated || Date.now(),
-        serverId: serverId || 0
+        dateUpdated: dateUpdated || Date.now()
       }
     });
   },
@@ -530,7 +527,7 @@ let PlacesInterestsStorage = {
   getAllInterestIFRs: function() {
     // elete everything
     return this._execute(SQL.getAllInterestIFRs, {
-      columns: ["serverNamespace","interest","dateUpdated","ifr","serverId"]
+      columns: ["serverNamespace","interest","dateUpdated","ifr"]
     }).then(results => {
       // walk through results array and parse IFR back into object
       results.forEach(item => {
