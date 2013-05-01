@@ -354,10 +354,10 @@ Interests.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// Processing Update Server Namespace Data & IFR Rules
 
-  _processInterestMetaIFR: function I___processInterestIFR(serverNamespace,
-                                                           interest,
-                                                           rule_ifr,
-                                                           lastModified) {
+  _processInterestIFR: function I___processInterestIFR(serverNamespace,
+                                                       interest,
+                                                       rule_ifr,
+                                                       lastModified) {
     let deferred = Promise.defer();
     let setInterestDone = false;
     let addIFRDone = false;
@@ -378,7 +378,7 @@ Interests.prototype = {
           testForCompletion();
     });
 
-    PlacesInterestsStorage.addInterestIFR(
+    PlacesInterestsStorage.setInterestIFR(
       serverNamespace,
       interest,
       lastModified,
@@ -399,7 +399,7 @@ Interests.prototype = {
     let promises = [];
 
     // we have to update timestamp on the server namespace itself
-    promises.push(PlacesInterestsStorage.addNamespace(serverNamespace,lastModified));
+    promises.push(PlacesInterestsStorage.setServerNamespace(serverNamespace,lastModified));
 
     // now handle each rule
     Object.keys(ifrData).forEach(key => {
@@ -414,10 +414,10 @@ Interests.prototype = {
         return;
       }
       promises.push(
-        this._processInterestMetaIFR(serverNamespace,
-                                     interest,
-                                     ifrData[key],
-                                     lastModified));
+        this._processInterestIFR(serverNamespace,
+                                 interest,
+                                 ifrData[key],
+                                 lastModified));
     });
 
 
@@ -426,12 +426,12 @@ Interests.prototype = {
       if (deleteOutdatedRules) {
         // delete interests timestemaped before lastModified
         PlacesInterestsStorage.
-          deleteOutdatedInterests(serverNamespace, lastModified).then(() => deferred.resolve());
+          deleteOutdatedInterestIFRs(serverNamespace, lastModified).then(() => deferred.resolve());
       }
       else {
         // no deletion - bring all server namespace rules to the given timestamp
         PlacesInterestsStorage.
-          updateOutdatedInterests(serverNamespace, lastModified).then(() => deferred.resolve());
+          updateOutdatedInterestIFRs(serverNamespace, lastModified).then(() => deferred.resolve());
       }
     });
     return deferred.promise;
@@ -485,7 +485,7 @@ Interests.prototype = {
         break;
 
       case 410:  // gone
-        return PlacesInterestsStorage.clearNamespace(serverNamespace);
+        return PlacesInterestsStorage.clearServerNamespace(serverNamespace);
         break;
 
       case 304:  // not modified
@@ -525,7 +525,7 @@ Interests.prototype = {
   _updateNamespaces: function() {
     let returnDeferred = Promise.defer();
     let promises = [];
-    PlacesInterestsStorage.getNamespaces().then(results => {
+    PlacesInterestsStorage.getServerNamespaces().then(results => {
       try {
         results.forEach(nsObject => {
           // create and store a promise

@@ -35,7 +35,7 @@ let enIFR1 = {
 add_task(function test_processNamespace() {
 
   yield iServiceObject._processServerNamespace("en/foo",1000,enIFR1);
-  yield PlacesInterestsStorage.addNamespace("en/foo",1000);
+  yield PlacesInterestsStorage.setServerNamespace("en/foo",1000);
   yield PlacesInterestsStorage.getInterests(["pets", "cars"]).then(results => {
     do_check_eq(results.cars.threshold,1);
     do_check_eq(results.cars.duration,100);
@@ -43,7 +43,7 @@ add_task(function test_processNamespace() {
     do_check_eq(results.pets.duration,200);
   });
 
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     dumpObject(results);
     isIdentical(results,[ {
                            "serverNamespace":"en/foo",
@@ -69,7 +69,7 @@ add_task(function test_processNamespace() {
   yield iServiceObject._processServerNamespace("en/foo",5000,enIFR1);
 
   // make sure the namespace update date is 5000
-  yield PlacesInterestsStorage.getNamespaces().then(results => {
+  yield PlacesInterestsStorage.getServerNamespaces().then(results => {
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].lastModified,5000);
   });
@@ -81,7 +81,7 @@ add_task(function test_processNamespace() {
     do_check_eq(results.pets.duration,200);
   });
 
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results.sort((a,b) => a.interest.localeCompare(b.interest))
                          ,[ {
                            "serverNamespace":"en/foo",
@@ -103,7 +103,7 @@ add_task(function test_processNamespace() {
   // no mentioned in IFR, whose timestamp is less 7000
   yield iServiceObject._processServerNamespace("en/foo",7000,enIFR1,true);
 
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results ,[ {
                            "serverNamespace":"en/foo",
                            "interest":"cars",

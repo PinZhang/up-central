@@ -65,7 +65,7 @@ add_task(function test_NamespaceUpdate() {
   let lastModifiedMiliSeconds = iServiceObject._RFC2822ToMilliSeconds("Tue, 15 Nov 1994 12:45:26 GMT");
   do_check_eq(lastModifiedMiliSeconds,784903526000);
   do_check_eq(iServiceObject._miliSecondsToRFC2822(784903526000),"Tue, 15 Nov 1994 12:45:26 GMT");
-  yield PlacesInterestsStorage.addNamespace("en/foo",0);
+  yield PlacesInterestsStorage.setServerNamespace("en/foo",0);
   setUpServerResponseForNamespace("en/foo");
 
   httpUpdateObject["en/foo"] = {};
@@ -95,7 +95,7 @@ add_task(function test_NamespaceUpdate() {
     do_check_eq(results.pets.duration,200);
   });
 
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results,[ {
                            "serverNamespace":"en/foo",
                            "interest":"cars",
@@ -128,7 +128,7 @@ add_task(function test_NamespaceUpdate() {
   yield iServiceObject._updateNamespaces();
 
   // make sure the namespace update date is 5000
-  yield PlacesInterestsStorage.getNamespaces().then(results => {
+  yield PlacesInterestsStorage.getServerNamespaces().then(results => {
     do_check_eq(results[0].serverNamespace,"en/foo");
     do_check_eq(results[0].lastModified,784989927000);
   });
@@ -142,7 +142,7 @@ add_task(function test_NamespaceUpdate() {
   });
 
   yield PlacesInterestsStorage.
-    getAllIFRs().then(results => {
+    getAllInterestIFRs().then(results => {
     isIdentical(results.sort((a,b) => a.interest.localeCompare(b.interest))
                          ,[ {
                            "serverNamespace":"en/foo",
@@ -173,7 +173,7 @@ add_task(function test_NamespaceUpdate() {
 
   // try out the deletion of IFRs, this last flag will force deletion of rules
   // no mentioned in IFR, whose timestamp is less 7000
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results ,[ {
                            "serverNamespace":"en/foo",
                            "interest":"cars",
@@ -187,7 +187,7 @@ add_task(function test_NamespaceUpdate() {
   [304,400,404].forEach(function(code) {
     httpUpdateObject["en/foo"].status = code;
     yield iServiceObject._updateNamespaces();
-    yield PlacesInterestsStorage.getAllIFRs().then(results => {
+    yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
       isIdentical(results ,[ {
                              "serverNamespace":"en/foo",
                              "interest":"cars",
@@ -202,7 +202,7 @@ add_task(function test_NamespaceUpdate() {
   httpUpdateObject["en/foo"].status = 410;
   yield iServiceObject._updateNamespaces();
   // now results should just empty
-  yield PlacesInterestsStorage.getAllIFRs().then(results => {
+  yield PlacesInterestsStorage.getAllInterestIFRs().then(results => {
     isIdentical(results ,[]);
   });
 
