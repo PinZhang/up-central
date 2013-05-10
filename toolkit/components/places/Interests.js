@@ -357,7 +357,7 @@ Interests.prototype = {
   _processInterestIFR: function I___processInterestIFR(serverNamespace,
                                                        interest,
                                                        rule_ifr,
-                                                       lastModified) {
+                                                       timeStamp) {
     if (!rule_ifr) {
       // this rule must be deleted
       return PlacesInterestsStorage.
@@ -375,59 +375,52 @@ Interests.prototype = {
       return PlacesInterestsStorage.setInterestIFR(
                serverNamespace,
                interest,
-               lastModified,
+               timeStamp,
                matches);
     });
   },
 
-  _processServerNamespace: function I__processServerNamespace(
-                                                  serverNamespace,
-                                                  lastModified,
-                                                  ifrData,
-                                                  deleteOutdatedRules) {
-    let deferred = Promise.defer();
-    let promises = [];
+  _processServerNamespace: function I__processServerNamespace(serverNamespace,
+                                                              timeStamp,
+                                                              ifrData,
+                                                              deleteOutdatedRules) {
+
 
     // we have to update timestamp on the server namespace itself
-    promises.push(PlacesInterestsStorage.
-      setServerNamespace(serverNamespace, lastModified));
-
-    // now handle each rule
-    Object.keys(ifrData).forEach(key => {
-      // parse out rule name to extract server namespace & interest
-      let bits = key.split(":");
-      let ruleNamespace = bits.shift();
-      let interest = bits.shift();
-      // make sure rule serverNamespace match the argumets
-      if (ruleNamespace != serverNamespace) {
-        // TODO: Handle Error
-        Cu.reportError(aEvent.message);
-        return;
-      }
-      promises.push(
-        this._processInterestIFR(serverNamespace,
-                                 interest,
-                                 ifrData[key],
-                                 lastModified));
-    });
-
-
-    // when all insetions are done, we must do the clean up
-    Promise.promised(Array)(promises).then(() => {
+    return PlacesInterestsStorage.setServerNamespace(serverNamespace,timeStamp).
+      then(() => {
+        let promises = [];
+        // now update each rule IFR
+        Object.keys(ifrData).forEach(key => {
+          // parse out rule name to extract server namespace & interest
+          let bits = key.split(":");
+          let ruleNamespace = bits.shift();
+          let interest = bits.shift();
+          // make sure rule serverNamespace match the argumets
+          if (ruleNamespace != serverNamespace) {
+            // TODO: Handle Error
+            Cu.reportError(aEvent.message);
+            return;
+          }
+          promises.push(
+            this._processInterestIFR(serverNamespace,
+                                     interest,
+                                     ifrData[key],
+                                     timeStamp));
+        });
+        return promises;
+    }).then(gatherPromises).then(() => {
       if (deleteOutdatedRules) {
-        // delete interests timestemaped before lastModified
-        PlacesInterestsStorage.
-          deleteOutdatedInterestIFRs(serverNamespace, lastModified).
-            then(() => deferred.resolve());
+        // delete interests timestemaped before timeStamp
+        return PlacesInterestsStorage.
+          deleteOutdatedInterestIFRs(serverNamespace, timeStamp);
       }
       else {
         // no deletion - bring all server namespace rules to the given timestamp
-        PlacesInterestsStorage.
-          updateOutdatedInterestIFRs(serverNamespace, lastModified).
-            then(() => deferred.resolve());
+        return PlacesInterestsStorage.
+          updateOutdatedInterestIFRs(serverNamespace, timeStamp);
       }
     });
-    return deferred.promise;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -466,16 +459,17 @@ Interests.prototype = {
       case 200:
         // full server namespace update, delete outdated rules
         return this._processServerNamespace(serverNamespace,
-                                      lastModified,
-                                      xhr.response,
-                                      true);
+                                            lastModified,
+                                            xhr.response,
+                                            true);
         break;
 
       case 206:
         // partual server namespace update, only update specified rules
         return this._processServerNamespace(serverNamespace,
-                                      lastModified,
-                                      xhr.response);
+                                            lastModified,
+                                            xhr.response,
+                                            false);
         break;
 
       case 410:  // gone
