@@ -2,7 +2,3 @@
 component {DFB46031-8F05-4577-80A4-F4E5D492881F} Interests.js
 contract @mozilla.org/interests;1 {DFB46031-8F05-4577-80A4-F4E5D492881F}
 category app-startup Interests service,@mozilla.org/interests;1
-
-component {7E7F2263-E356-4B2F-B32B-4238240CD7F9} Interests.js
-contract @mozilla.org/InterestsWebAPI;1 {7E7F2263-E356-4B2F-B32B-4238240CD7F9}
-category JavaScript-navigator-property interests @mozilla.org/InterestsWebAPI;1

@@ -36,14 +36,6 @@
       </popupnotificationcontent>
     </popupnotification>
 
-    <popupnotification id="interests-notification" hidden="true">
-      <popupnotificationcontent orient="vertical" align="start">
-        <separator class="thin"/>
-        <label id="interests-privacy" value="&interests.privacy;"/>
-        <label id="interests-learnmore-link" value="&interests.learnMore;" href="about:profile" class="text-link"/>
-      </popupnotificationcontent>
-    </popupnotification>
-
     <popupnotification id="servicesInstall-notification" hidden="true">
       <popupnotificationcontent orient="vertical" align="start">
         <separator class="thin"/>

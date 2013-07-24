@@ -18,10 +18,4 @@ DIRS += ['worker']
 
 JS_MODULES_PATH = 'modules/interests'
 
-MODULE = 'interests'
-
 TEST_DIRS += ['tests']
-
-XPIDL_SOURCES += [
-    'mozIInterestsWebAPI.idl',
-]

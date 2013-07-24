@@ -13,10 +13,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_BROWSER_FILES = \
 	head.js \
-	browser_getinterest_privatebrowsing_perwindowpb.js \
 	browser_addinterest_privatebrowsing_perwindowpb.js \
-	browser_interests_whitelist.js \
-	browser_interests_metadata_init.js \
 	$(NULL)
 
 # These are files that need to be loaded via the HTTP proxy server

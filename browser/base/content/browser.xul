@@ -515,7 +515,6 @@
             <image id="webRTC-shareDevices-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="webRTC-sharingDevices-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="pointerLock-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="interests-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="servicesInstall-notification-icon" class="notification-anchor-icon" role="button"/>
           </box>
           <!-- Use onclick instead of normal popup= syntax since the popup

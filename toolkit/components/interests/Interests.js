@@ -31,8 +31,6 @@ const kWindowReady = "toplevel-window-ready";
 
 // prefs
 const kPrefClassifierEnabled = "interests.enabled";
-const kPrefWebAPIEnabled = "interests.navigator.enabled";
-const kPrefWhitelist = "interests.userDomainWhitelist";
 
 // constants
 const kDaysToResubmit = 31;
@@ -46,27 +44,7 @@ const kInterests = ["Android", "Apple", "Arts", "Autos", "Baseball", "Basketball
 "Television", "Video-Games", "Weddings"];
 
 let gClassifierEnabled = Services.prefs.getBoolPref(kPrefClassifierEnabled);
-let gAPIEnabled = Services.prefs.getBoolPref(kPrefWebAPIEnabled);
 let gInterestsService = null;
-
-function exposeAll(obj) {
-  // Filter for Objects and Arrays.
-  if (typeof obj !== "object" || !obj) {
-    return;
-  }
-
-  // Recursively expose our children.
-  Object.keys(obj).forEach(key => exposeAll(obj[key]));
-
-  // If we're not an Array, generate an __exposedProps__ object for ourselves.
-  if (obj instanceof Array) {
-    return;
-  }
-
-  var exposed = {};
-  Object.keys(obj).forEach(key => exposed[key] = "r");
-  obj.__exposedProps__ = exposed;
-}
 
 function Interests() {
   gInterestsService = this;
@@ -225,8 +203,7 @@ Interests.prototype = {
               name: host,
               interests: [],
               isBlocked: this.isSiteBlocked(host),
-              isPrivileged: this._getDomainWhitelistedSet().
-                              has(this._normalizeHostName(host)),
+              isPrivileged: false,
             };
             hostsData[host] = hostObject;
             hostsList.push(hostObject);
@@ -446,26 +423,6 @@ Interests.prototype = {
   },
 
   /**
-   * inits and returns domains allowed full access to interests
-   *
-   * @returns list of domains
-   */
-  _getDomainWhitelistedSet: function I__getDomainWhitelist() {
-    if (!("__whitelistedSet" in this)) {
-      // init with default values
-      this.__whitelistedSet = new Set(["mozilla.org", "mozilla.com", "people.mozilla.com", "people.mozilla.org"]);
-
-      // load from user prefs
-      let userWhitelist = Services.prefs.getCharPref(kPrefWhitelist).trim().split(/\s*,\s*/);
-      for (let i=0; i<userWhitelist.length; i++) {
-        this.__whitelistedSet.add(userWhitelist[i]);
-      }
-    }
-
-    return this.__whitelistedSet;
-  },
-
-  /**
    * Initializes hardcoded interests
    *
    * @returns A promise for all interests being initialized
@@ -621,12 +578,6 @@ Interests.prototype = {
       if (aData == kPrefClassifierEnabled) {
         this._prefClassifierHandler();
       }
-      else if (aData == kPrefWebAPIEnabled) {
-        this._prefAPIHandler();
-      }
-      else if (aData == kPrefWhitelist) {
-        this._resetWhitelistHandler();
-      }
     }
     else if (aTopic == kShutdown) {
       Services.obs.removeObserver(this, kShutdown);
@@ -650,23 +601,6 @@ Interests.prototype = {
     else if (!enable && gClassifierEnabled) {
       delete this.__worker;
       gClassifierEnabled = false;
-    }
-  },
-
-  _prefAPIHandler: function I__prefAPIHandler() {
-    let enable = Services.prefs.getBoolPref(kPrefWebAPIEnabled);
-    if (enable && !gAPIEnabled) {
-      gAPIEnabled = true;
-    }
-    else if (!enable && gAPIEnabled) {
-      gAPIEnabled = false;
-    }
-  },
-
-  // pref observer for user-defined whitelist
-  _resetWhitelistHandler: function I__resetWhitelistHandler() {
-    if (gInterestsService && this.__whitelistedSet) {
-      delete this.__whitelistedSet;
     }
   },
 
@@ -757,166 +691,5 @@ Interests.prototype = {
   _xpcom_factory: XPCOMUtils.generateSingletonFactory(Interests),
 };
 
-function InterestsWebAPI() {
-  this.currentHost = "";
-}
-InterestsWebAPI.prototype = {
-  //////////////////////////////////////////////////////////////////////////////
-  //// mozIInterestsWebAPI
-
-  /**
-   * Get information about specific interests sorted by score
-   *
-   * @param   interests
-   *          An array of interest name strings
-   * @param   [optional] interestsData
-   * @returns Promise with the sorted array of top interests
-   */
-  getInterests: function IWA_getInterests(interests, interestsData) {
-    let deferred = this._makePromise();
-
-    let whitelistedSet = gInterestsService._getDomainWhitelistedSet();
-    if (!whitelistedSet.has(this.currentHost)) {
-      deferred.reject("host "+this.currentHost+" does not have enough privileges to access getInterests");
-      return deferred.promise;
-    }
-
-    // Only allow API access according to the user's permission
-    this._checkContentPermission().then(() => {
-      return gInterestsService.getInterestsByNames(interests, {
-        checkSharable: true,
-        excludeMeta: true,
-        roundDiversity: true,
-        roundScore: true,
-        requestingHost: this.realHost,
-      });
-    }).then(sortedInterests => {
-      exposeAll(sortedInterests);
-      deferred.resolve(sortedInterests);
-    }, error => deferred.reject(error));
-
-    return deferred.promise;
-  },
-
-  /**
-   * Get the user's top interests
-   *
-   * @param   [optional] topData
-   * @returns Promise with the array of top interests
-   */
-  getTopInterests: function IWA_getTopInterests(topData) {
-    let deferred = this._makePromise();
-
-    let aNumber = topData || 5;
-    if (aNumber > 5) {
-      let whitelistedSet = gInterestsService._getDomainWhitelistedSet();
-      if (!whitelistedSet.has(this.currentHost)) {
-        deferred.reject("host "+this.currentHost+" does not have enough privileges to access getTopInterests("+aNumber+")");
-        return deferred.promise;
-      }
-    }
-
-    // Only allow API access according to the user's permission
-    this._checkContentPermission().then(() => {
-      return gInterestsService.getInterestsByNamespace("", {
-        checkSharable: true,
-        excludeMeta: true,
-        interestLimit: aNumber,
-        roundDiversity: true,
-        roundScore: true,
-        requestingHost: this.realHost,
-      });
-    }).then(topInterests => {
-      exposeAll(topInterests);
-      deferred.resolve(topInterests);
-    }, error => deferred.reject(error));
-
-    return deferred.promise;
-  },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// mozIInterestsWebAPI Helpers
-
-  /**
-   * Make a promise that exposes "then" to allow callbacks
-   *
-   * @returns Promise usable from content
-   */
-  _makePromise: function IWA__makePromise() {
-    let deferred = Promise.defer();
-    deferred.promise.__exposedProps__ = {
-      then: "r"
-    };
-    return deferred;
-  },
-
-  /**
-   * Check if the user has allowed API access
-   *
-   * @returns Promise for when the content access is allowed or canceled
-   */
-  _checkContentPermission: function IWA__checkContentPermission() {
-    let promptPromise = Promise.defer();
-
-    // APIs created by tests don't have a principal, so just allow them
-    // Also allow higher privileged pages.
-    if (this.window == null || this.window.document == null) {
-      promptPromise.resolve();
-    }
-    // Always reject for private browsing window
-    else if (PrivateBrowsingUtils.isWindowPrivate(this.window)) {
-      promptPromise.reject("blocked");
-    }
-    // For content documents, check the user's permission
-    else {
-      let host = gInterestsService._getPlacesHostForURI(this.window.document.documentURIObject);
-      if (!gAPIEnabled && !gInterestsService.isSiteEnabled(host)) {
-        // reject if web api is not enabled and if site is not explicitly enabled
-        promptPromise.reject("blocked");
-      }
-
-      let prompt = Cc["@mozilla.org/content-permission/prompt;1"].
-        createInstance(Ci.nsIContentPermissionPrompt);
-      prompt.prompt({
-        type: "interests",
-        window: this.window,
-        principal: this.window.document.nodePrincipal,
-        allow: () => promptPromise.resolve(),
-        cancel: () => promptPromise.reject(),
-      });
-    }
-
-    return promptPromise.promise;
-  },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// nsIDOMGlobalPropertyInitializer
-
-  init: function IWA__init(aWindow) {
-    let uriObj = {host: aWindow.location.hostname || aWindow.location.href};
-    this.currentHost = gInterestsService._getPlacesHostForURI(uriObj);
-    this.realHost = uriObj.host;
-    this.window = aWindow;
-  },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// nsISupports
-
-  classID: Components.ID("{7E7F2263-E356-4B2F-B32B-4238240CD7F9}"),
-
-  classInfo: XPCOMUtils.generateCI({
-    "classID": Components.ID("{7E7F2263-E356-4B2F-B32B-4238240CD7F9}"),
-    "contractID": "@mozilla.org/InterestsWebAPI;1",
-    "interfaces": [Ci.mozIInterestsWebAPI],
-    "flags": Ci.nsIClassInfo.DOM_OBJECT,
-    "classDescription": "Interests Web API"
-  }),
-
-  QueryInterface: XPCOMUtils.generateQI([
-  , Ci.mozIInterestsWebAPI
-  , Ci.nsIDOMGlobalPropertyInitializer
-  ]),
-};
-
-let components = [Interests, InterestsWebAPI];
+let components = [Interests];
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

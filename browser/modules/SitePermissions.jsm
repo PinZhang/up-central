@@ -228,20 +228,5 @@ let gPermissionObject = {
 
   "pointerLock": {
     exactHostMatch: true
-  },
-
-  "interests": {
-    states: [ SitePermissions.ALLOW, SitePermissions.UNKNOWN, SitePermissions.BLOCK ],
-    getDefault: () => {
-      // If the user has interests explicitly enabled or not, use that permission
-      try {
-        return gPrefs.getBoolPref("interests.navigator.enabled") ?
-          SitePermissions.ALLOW : SitePermissions.BLOCK;
-      }
-      catch(ex) {}
-
-      // The default value is unset, so we will ask
-      return SitePermissions.UNKNOWN;
-    }
-  },
+  }
 };
