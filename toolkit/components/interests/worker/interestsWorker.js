@@ -4,10 +4,6 @@
 
 "use strict";
 
-try{
-  importScripts("resource://gre/modules/interests/worker/interestsTextClassifier.js");
-}catch(ex){dump("ERROR file:" + ex.fileName + " line:" + ex.lineNumber + " message:" + ex.message);}
-
 function InterestsWorkerError(message) {
     this.name = "InterestsWorkerError";
     this.message = message || "InterestsWorker has errored";
@@ -15,21 +11,11 @@ function InterestsWorkerError(message) {
 InterestsWorkerError.prototype = new Error();
 InterestsWorkerError.prototype.constructor = InterestsWorkerError;
 
-let gTokenizer = null;
-let gClassifier = null;
 let gInterestsData = null;
 const kSplitter = /[^-\w\xco-\u017f\u0380-\u03ff\u0400-\u04ff]+/;
 
 // bootstrap the worker with data and models
 function bootstrap(aMessageData) {
-  //expects : {interestsData, interestsDataType, interestsClassifierModel, interestsUrlStopwords}
-  if (aMessageData.interestsUrlStopwords) {
-    gTokenizer = new PlaceTokenizer(aMessageData.interestsUrlStopwords);
-  }
-  if (aMessageData.interestsClassifierModel) {
-    gClassifier = new NaiveBayesClassifier(aMessageData.interestsClassifierModel);
-  }
-
   swapRules(aMessageData, true);
 
   self.postMessage({
@@ -101,30 +87,11 @@ function ruleClassify({host, language, tld, metaData, path, title, url}) {
   return interests;
 }
 
-// classify a page using text
-function textClassify({url, title}) {
-  if (gTokenizer == null || gClassifier == null) {
-    throw new InterestsWorkerError("interest classifier not loaded");
-  }
-
-  let tokens = gTokenizer.tokenize(url, title);
-  let interest = gClassifier.classify(tokens);
-
-  if (interest != null) {
-    return interest;
-  }
-  return [];
-}
-
 // Figure out which interests are associated to the document
 function getInterestsForDocument(aMessageData) {
   let interests = [];
   try {
     interests = ruleClassify(aMessageData);
-    if (interests.length == 0) {
-      // fallback to text classification
-      interests = textClassify(aMessageData);
-    }
 
     // remove duplicates
     if (interests.length > 1) {
@@ -151,19 +118,6 @@ function getInterestsForDocument(aMessageData) {
     visitDate: aMessageData.visitDate,
     visitCount: aMessageData.visitCount,
     messageId: aMessageData.messageId
-  });
-}
-
-// Classify document via text only
-function getInterestsForDocumentText(aMessageData) {
-  let interests = textClassify(aMessageData);
-
-  // Respond with the interests for the document
-  self.postMessage({
-    host: aMessageData.host,
-    interests: interests,
-    message: "InterestsForDocumentText",
-    url: aMessageData.url
   });
 }
 

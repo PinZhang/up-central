@@ -165,16 +165,12 @@ Interests.prototype = {
       let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
         getService(Ci.mozIJSSubScriptLoader);
       let data = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsData.js");
-      let model = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsClassifierModel.js");
-      let stopwords = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsUrlStopwords.js");
 
       // bootstrap message makes worker to setup categorization structures
       this.__worker.postMessage({
         message: "bootstrap",
         interestsDataType: "dfr",
         interestsData: interestsData,
-        interestsClassifierModel: interestsClassifierModel,
-        interestsUrlStopwords: interestsUrlStopwords
       });
     }
     return this.__worker;
