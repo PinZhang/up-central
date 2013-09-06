@@ -62,7 +62,7 @@ pref("extensions.hotfix.certs.1.sha1Fingerprint", "CA:C4:7D:BF:63:4D:24:E9:DC:93
 
 // Disable add-ons that are not installed by the user in all scopes by default.
 // See the SCOPE constants in AddonManager.jsm for values to use here.
-pref("extensions.autoDisableScopes", 15);
+pref("extensions.autoDisableScopes", 0);
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
@@ -1277,7 +1277,7 @@ pref("interests.enabled", false);
 pref("interests.userDomainWhitelist", "");
 pref("interests.navigator.enabled", false);
 pref("interests.navigator.prompted", false);
-pref("interests.about.dashboardUrl", "https://up.cdn.mozilla.net/%LOCALE%/");
+pref("interests.about.dashboardUrl", "http://people.mozilla.org/~oyiptong/up-dashboard-0.3/%LOCALE%/");
 
 // Turn on the CSP 1.0 parser for Content Security Policy headers
 pref("security.csp.speccompliant", true);

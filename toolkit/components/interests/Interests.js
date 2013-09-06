@@ -188,8 +188,13 @@ Interests.prototype = {
       let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
         getService(Ci.mozIJSSubScriptLoader);
       let data = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsData.js");
+      /*
+      // turn off text classifier for high-signal interests
       let model = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsClassifierModel.js");
       let stopwords = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsUrlStopwords.js");
+      */
+      let interestsClassifierModel = null;
+      let interestsUrlStopwords = null;
 
       // bootstrap message makes worker to setup categorization structures
       this.__worker.postMessage({
