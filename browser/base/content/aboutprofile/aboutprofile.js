@@ -54,16 +54,12 @@ let userProfileWrapper = {
   },
 
   setAPIPref: function (value) {
-    Services.prefs.setBoolPref(kPrefWebAPIEnabled, value);
+    //Services.prefs.setBoolPref(kPrefWebAPIEnabled, value);
     this.updatePrefState();
   },
 
   updatePrefState: function () {
     let enabled = false;
-    try {
-      enabled = Services.prefs.getBoolPref(kPrefWebAPIEnabled);
-    }
-    catch(ex) {}
 
     this.injectData("prefs", {
       enabled: enabled
