@@ -33,18 +33,24 @@ const kWindowReady = "toplevel-window-ready";
 const kPrefClassifierEnabled = "interests.enabled";
 const kPrefWebAPIEnabled = "interests.navigator.enabled";
 const kPrefWhitelist = "interests.userDomainWhitelist";
+const kPrefRegionCode = "interests.regionCode";
 
 // constants
 const kDaysToResubmit = 31;
 const kResubmitChunkSize = 1000;
 
-const kInterests = ["Android", "Apple", "Arts", "Autos", "Baseball", "Basketball",
-"Boxing", "Business", "Cooking", "Design", "Do-It-Yourself", "Entrepreneur",
-"Fashion-Men", "Fashion-Women", "Football", "Gardening", "Golf", "Gossip",
-"Health-Men", "Health-Women", "Hockey", "Home-Design", "Humor", "Ideas",
-"Mixed-Martial-Arts", "Movies", "Music", "Parenting", "Photography", "Politics",
-"Programming", "Science", "Soccer", "Sports", "Technology", "Tennis", "Travel",
-"Television", "Video-Games", "Weddings"];
+XPCOMUtils.defineLazyGetter(this, 'kRegionCode', function() {
+  let regionCode = Services.prefs.getCharPref(kPrefRegionCode).trim();
+  return ['en-US', 'zh-CN'].indexOf(regionCode) == -1 ? 'en-US' : regionCode;
+});
+
+XPCOMUtils.defineLazyGetter(this, 'kInterests', function() {
+  // Read categories from files
+  let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+    getService(Ci.mozIJSSubScriptLoader);
+  let model = scriptLoader.loadSubScript("resource://gre/modules/interests/data/" + kRegionCode + "/interestsCategories.js");
+  return interestsCategories;
+});
 
 let gClassifierEnabled = Services.prefs.getBoolPref(kPrefClassifierEnabled);
 let gAPIEnabled = Services.prefs.getBoolPref(kPrefWebAPIEnabled);
@@ -187,13 +193,14 @@ Interests.prototype = {
       // load reference data files and pass them to the worker
       let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
         getService(Ci.mozIJSSubScriptLoader);
-      let data = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsData.js");
-      let model = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsClassifierModel.js");
+      let data = scriptLoader.loadSubScript("resource://gre/modules/interests/data/" + kRegionCode + "/interestsData.js");
+      let model = scriptLoader.loadSubScript("resource://gre/modules/interests/data/" + kRegionCode + "/interestsClassifierModel.js");
       let stopwords = scriptLoader.loadSubScript("resource://gre/modules/interests/worker/interestsUrlStopwords.js");
 
       // bootstrap message makes worker to setup categorization structures
       this.__worker.postMessage({
         message: "bootstrap",
+        regionCode: kRegionCode,
         interestsDataType: "dfr",
         interestsData: interestsData,
         interestsClassifierModel: interestsClassifierModel,
@@ -503,7 +510,7 @@ Interests.prototype = {
    */
   _checkMetadataInit: function I__checkMetadataInit(interestsStorage) {
     let metadataPromise = Promise.defer();
-    interestsStorage.getInterests(["Arts"]).then(results => {
+    interestsStorage.getInterests([kInterests[0]]).then(results => {
       if (Object.keys(results).length == 0) {
         this._initInterestMeta(interestsStorage).then(() => {
           metadataPromise.resolve();

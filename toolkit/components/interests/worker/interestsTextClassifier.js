@@ -10,8 +10,56 @@ const kNotWordPattern = /[^a-z0-9 ]+/g;
 const kMinimumMatchTokens = 3;
 const kSimilarityCutOff = Math.log(0.95);
 
-function PlaceTokenizer(aUrlStopwordSet) {
-  this._urlStopwordSet = aUrlStopwordSet;
+function ChineseTokenizer(aModel) {
+  this._hash = [];
+  this.initialize(aModel);
+}
+
+ChineseTokenizer.prototype = {
+  initialize: function(aModel) {
+    for (let key in aModel.logLikelihoods) {
+      this._addDict(key);
+    }
+  },
+
+  _addDict: function(s) {
+    let n = s.length;
+
+    if (!this._hash[n]) {
+      this._hash[n] = {};
+    }
+
+    this._hash[n][s] = true;
+  },
+
+  tokenize: function(sen) {
+    let max = Math.min(sen.length, this._hash.length - 1);
+    for (let n = max; n > 0; n--) {
+      if (!this._hash[n]) {
+        continue;
+      }
+
+      let section = sen.slice(sen.length - n);
+      if (this._hash[n][section]) {
+        return sen.length >= n
+          ? seg(sen.slice(0, sen.length - n)).concat([section])
+          : [];
+      }
+    }
+
+    return sen.length >= 1
+      ? seg(sen.slice(0, sen.length - 1))
+      : [];
+  }
+};
+
+function PlaceTokenizer({urlStopwordSet, model, regionCode}) {
+  this._urlStopwordSet = urlStopwordSet;
+  this._regionCode = regionCode;
+
+  if (regionCode == 'zh-CN' && !model) {
+    this._cnTokenizer = new ChineseTokenizer(model);
+  }
 }
 
 PlaceTokenizer.prototype = {
@@ -28,7 +76,11 @@ PlaceTokenizer.prototype = {
       }
     }, this);
 
-    tokens = tokens.concat(aTitle.split(/\s+/));
+    if (this._regionCode == 'zh-CN') {
+      tokens = tokens.concat(this._cnTokenizer.tokenize(aTitle));
+    } else {
+      tokens = tokens.concat(aTitle.split(/\s+/));
+    }
 
     return tokens;
   }

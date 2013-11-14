@@ -14,7 +14,7 @@ EXTRA_JS_MODULES = [
     'InterestsStorage.jsm',
 ]
 
-DIRS += ['worker']
+DIRS += ['worker', 'data/en-US', 'data/zh-CN']
 
 JS_MODULES_PATH = 'modules/interests'
 
