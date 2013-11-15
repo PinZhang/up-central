@@ -263,6 +263,17 @@ Interests.prototype = {
       return;
     }
 
+    let keywords = '';
+    if (aDocument.head) {
+      let metas = aDocument.head.getElementsByTagName('meta');
+      for (let i = 0; i < metas.length; i++) {
+        if (metas[i].name == 'keywords') {
+          keywords = metas[i].content;
+          break;
+        }
+      }
+    }
+
     // send relevant page info to the worker for interests matching
     this._callMatchingWorker({
       message: "getInterestsForDocument",
@@ -270,6 +281,7 @@ Interests.prototype = {
       host: host,
       path: aDocument.documentURIObject.path,
       title: aDocument.title,
+      keywords: keywords,
       tld: this._getBaseDomain(host),
       metaData: {} ,
       language: "en"

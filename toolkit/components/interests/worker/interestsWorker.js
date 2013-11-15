@@ -120,12 +120,12 @@ function ruleClassify({host, language, tld, metaData, path, title, url}) {
  * @param {url, title} for a page
  * @returns an array of interests classified
  */
-function textClassify({url, title}) {
+function textClassify({url, title, keywords}) {
   if (gTokenizer == null || gClassifier == null) {
     return [];
   }
 
-  let tokens = gTokenizer.tokenize(url, title);
+  let tokens = gTokenizer.tokenize(url, title, keywords);
   let interest = gClassifier.classify(tokens);
 
   if (interest != null) {

@@ -63,7 +63,7 @@ function PlaceTokenizer({urlStopwordSet, model, regionCode}) {
 }
 
 PlaceTokenizer.prototype = {
-  tokenize: function(aUrl, aTitle) {
+  tokenize: function(aUrl, aTitle, aKeywords) {
     aUrl = aUrl.toLowerCase().replace(kNotWordPattern, " ");
 
     let tokens = [];
@@ -76,10 +76,11 @@ PlaceTokenizer.prototype = {
     }, this);
 
     if (this._regionCode == 'zh-CN') {
-      tokens = tokens.concat(this._cnTokenizer.tokenize(aTitle));
+      tokens = tokens.concat(this._cnTokenizer.tokenize(aTitle + ' ' + aKeywords));
     } else {
       aTitle = (aTitle) ? aTitle.toLowerCase().replace(kNotWordPattern, " ") : "";
-      tokens = tokens.concat(aTitle.split(/\s+/));
+      aKeywords = (aKeywords) ? aKeywords.toLowerCase().replace(kNotWordPattern, " ") : "";
+      tokens = tokens.concat((aTitle + ' ' + aKeywords).split(/\s+/));
     }
 
     return tokens;
