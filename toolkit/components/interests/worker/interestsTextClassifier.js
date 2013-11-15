@@ -42,13 +42,13 @@ ChineseTokenizer.prototype = {
       let section = sen.slice(sen.length - n);
       if (this._hash[n][section]) {
         return sen.length >= n
-          ? seg(sen.slice(0, sen.length - n)).concat([section])
+          ? this.tokenize(sen.slice(0, sen.length - n)).concat([section])
           : [];
       }
     }
 
     return sen.length >= 1
-      ? seg(sen.slice(0, sen.length - 1))
+      ? this.tokenize(sen.slice(0, sen.length - 1))
       : [];
   }
 };
@@ -57,7 +57,7 @@ function PlaceTokenizer({urlStopwordSet, model, regionCode}) {
   this._urlStopwordSet = urlStopwordSet;
   this._regionCode = regionCode;
 
-  if (regionCode == 'zh-CN' && !model) {
+  if (regionCode == 'zh-CN' && model) {
     this._cnTokenizer = new ChineseTokenizer(model);
   }
 }
@@ -65,7 +65,6 @@ function PlaceTokenizer({urlStopwordSet, model, regionCode}) {
 PlaceTokenizer.prototype = {
   tokenize: function(aUrl, aTitle) {
     aUrl = aUrl.toLowerCase().replace(kNotWordPattern, " ");
-    aTitle = (aTitle) ? aTitle.toLowerCase().replace(kNotWordPattern, " ") : "";
 
     let tokens = [];
 
@@ -79,6 +78,7 @@ PlaceTokenizer.prototype = {
     if (this._regionCode == 'zh-CN') {
       tokens = tokens.concat(this._cnTokenizer.tokenize(aTitle));
     } else {
+      aTitle = (aTitle) ? aTitle.toLowerCase().replace(kNotWordPattern, " ") : "";
       tokens = tokens.concat(aTitle.split(/\s+/));
     }
 

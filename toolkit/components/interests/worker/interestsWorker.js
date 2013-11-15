@@ -162,7 +162,7 @@ function getInterestsForDocument(aMessageData) {
     }
   }
   catch (ex) {
-    Components.utils.reportError(ex);
+    dump(ex + '\n');
   }
 
   // Respond with the interests for the document

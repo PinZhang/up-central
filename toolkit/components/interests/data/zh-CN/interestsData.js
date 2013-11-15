@@ -1,5 +1,4 @@
 var interestsData = {
-{
     "androidonline.net" : {
         "__ANY" : [
             "Android"

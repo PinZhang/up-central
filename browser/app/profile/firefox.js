@@ -1274,6 +1274,7 @@ pref("social.sidebar.unload_timeout_ms", 10000);
 pref("dom.identity.enabled", false);
 
 pref("interests.enabled", false);
+pref("interests.regionCode", 'zh-CN');
 pref("interests.userDomainWhitelist", "");
 pref("interests.navigator.enabled", false);
 pref("interests.navigator.prompted", false);

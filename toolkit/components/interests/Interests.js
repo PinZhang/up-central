@@ -49,6 +49,7 @@ XPCOMUtils.defineLazyGetter(this, 'kInterests', function() {
   let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
     getService(Ci.mozIJSSubScriptLoader);
   let model = scriptLoader.loadSubScript("resource://gre/modules/interests/data/" + kRegionCode + "/interestsCategories.js");
+
   return interestsCategories;
 });
 
