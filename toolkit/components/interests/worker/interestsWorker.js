@@ -29,7 +29,11 @@ const kSplitter = /[^-\w\xco-\u017f\u0380-\u03ff\u0400-\u04ff]+/;
  */
 function bootstrap(aMessageData) {
   if (aMessageData.interestsUrlStopwords) {
-    gTokenizer = new PlaceTokenizer(aMessageData.interestsUrlStopwords);
+    gTokenizer = new PlaceTokenizer({
+      urlStopwordSet: aMessageData.interestsUrlStopwords,
+      model: aMessageData.interestsClassifierModel,
+      regionCode: aMessageData.regionCode
+    });
   }
   if (aMessageData.interestsClassifierModel) {
     gClassifier = new NaiveBayesClassifier(aMessageData.interestsClassifierModel);
@@ -116,12 +120,12 @@ function ruleClassify({host, language, tld, metaData, path, title, url}) {
  * @param {url, title} for a page
  * @returns an array of interests classified
  */
-function textClassify({url, title}) {
+function textClassify({url, title, keywords}) {
   if (gTokenizer == null || gClassifier == null) {
     return [];
   }
 
-  let tokens = gTokenizer.tokenize(url, title);
+  let tokens = gTokenizer.tokenize(url, title, keywords);
   let interest = gClassifier.classify(tokens);
 
   if (interest != null) {
@@ -158,7 +162,7 @@ function getInterestsForDocument(aMessageData) {
     }
   }
   catch (ex) {
-    Components.utils.reportError(ex);
+    dump(ex + '\n');
   }
 
   // Respond with the interests for the document
